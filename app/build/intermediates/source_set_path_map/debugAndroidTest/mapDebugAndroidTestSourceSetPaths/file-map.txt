@@ -1,0 +1,4 @@
+com.strummer.practice.test.app-androidTest-0 /home/neil/StudioProjects/Strummer/app/build/generated/res/resValues/androidTest/debug
+com.strummer.practice.test.app-mergeDebugAndroidTestResources-1 /home/neil/StudioProjects/Strummer/app/build/intermediates/incremental/debugAndroidTest/mergeDebugAndroidTestResources/merged.dir
+com.strummer.practice.test.app-mergeDebugAndroidTestResources-2 /home/neil/StudioProjects/Strummer/app/build/intermediates/incremental/debugAndroidTest/mergeDebugAndroidTestResources/stripped.dir
+com.strummer.practice.test.app-debugAndroidTest-3 /home/neil/StudioProjects/Strummer/app/build/intermediates/merged_res/debugAndroidTest/mergeDebugAndroidTestResources

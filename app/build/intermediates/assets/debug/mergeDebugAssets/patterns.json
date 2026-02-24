@@ -1,0 +1,57 @@
+{
+  "patterns": [
+    {
+      "id": "basic_8_down_up",
+      "name": "Basic 8th Down/Up",
+      "subdivision": 8,
+      "steps": [
+        { "kind": "D" },
+        { "kind": "-" },
+        { "kind": "D" },
+        { "kind": "U" },
+        { "kind": "-" },
+        { "kind": "U" },
+        { "kind": "D" },
+        { "kind": "U" }
+      ]
+    },
+    {
+      "id": "folk_8",
+      "name": "Folk 8th",
+      "subdivision": 8,
+      "steps": [
+        { "kind": "D", "accent": true },
+        { "kind": "D" },
+        { "kind": "U" },
+        { "kind": "U" },
+        { "kind": "D" },
+        { "kind": "U" },
+        { "kind": "D" },
+        { "kind": "U" }
+      ]
+    },
+    {
+      "id": "steady_16",
+      "name": "Steady 16th",
+      "subdivision": 16,
+      "steps": [
+        { "kind": "D", "accent": true },
+        { "kind": "-" },
+        { "kind": "U" },
+        { "kind": "-" },
+        { "kind": "D" },
+        { "kind": "-" },
+        { "kind": "U" },
+        { "kind": "-" },
+        { "kind": "D" },
+        { "kind": "-" },
+        { "kind": "U" },
+        { "kind": "-" },
+        { "kind": "D" },
+        { "kind": "-" },
+        { "kind": "U" },
+        { "kind": "-" }
+      ]
+    }
+  ]
+}

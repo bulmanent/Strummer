@@ -1,10 +1,46 @@
 [
     {
+        "merged": "com.strummer.practice.app-release-66:/drawable_ic_launcher_background.xml.flat",
+        "source": "com.strummer.practice.app-main-67:/drawable/ic_launcher_background.xml"
+    },
+    {
+        "merged": "com.strummer.practice.app-release-66:/mipmap-anydpi-v26_ic_launcher.xml.flat",
+        "source": "com.strummer.practice.app-main-67:/mipmap-anydpi-v26/ic_launcher.xml"
+    },
+    {
         "merged": "com.strummer.practice.app-release-66:/xml_data_extraction_rules.xml.flat",
         "source": "com.strummer.practice.app-main-67:/xml/data_extraction_rules.xml"
     },
     {
+        "merged": "com.strummer.practice.app-release-66:/drawable_ic_launcher_foreground_retro.xml.flat",
+        "source": "com.strummer.practice.app-main-67:/drawable/ic_launcher_foreground_retro.xml"
+    },
+    {
+        "merged": "com.strummer.practice.app-release-66:/drawable_ic_launcher_foreground_neon.xml.flat",
+        "source": "com.strummer.practice.app-main-67:/drawable/ic_launcher_foreground_neon.xml"
+    },
+    {
         "merged": "com.strummer.practice.app-release-66:/xml_backup_rules.xml.flat",
         "source": "com.strummer.practice.app-main-67:/xml/backup_rules.xml"
+    },
+    {
+        "merged": "com.strummer.practice.app-release-66:/mipmap-anydpi-v26_ic_launcher_round.xml.flat",
+        "source": "com.strummer.practice.app-main-67:/mipmap-anydpi-v26/ic_launcher_round.xml"
+    },
+    {
+        "merged": "com.strummer.practice.app-release-66:/drawable_ic_launcher_foreground.xml.flat",
+        "source": "com.strummer.practice.app-main-67:/drawable/ic_launcher_foreground.xml"
+    },
+    {
+        "merged": "com.strummer.practice.app-release-66:/mipmap-anydpi-v26_ic_launcher_alt.xml.flat",
+        "source": "com.strummer.practice.app-main-67:/mipmap-anydpi-v26/ic_launcher_alt.xml"
+    },
+    {
+        "merged": "com.strummer.practice.app-release-66:/drawable_ic_launcher_background_retro.xml.flat",
+        "source": "com.strummer.practice.app-main-67:/drawable/ic_launcher_background_retro.xml"
+    },
+    {
+        "merged": "com.strummer.practice.app-release-66:/drawable_ic_launcher_background_neon.xml.flat",
+        "source": "com.strummer.practice.app-main-67:/drawable/ic_launcher_background_neon.xml"
     }
 ]

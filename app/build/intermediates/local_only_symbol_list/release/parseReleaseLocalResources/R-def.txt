@@ -1,5 +1,14 @@
 R_DEF: Internal format may change without notice
 local
+drawable ic_launcher_background
+drawable ic_launcher_background_neon
+drawable ic_launcher_background_retro
+drawable ic_launcher_foreground
+drawable ic_launcher_foreground_neon
+drawable ic_launcher_foreground_retro
+mipmap ic_launcher
+mipmap ic_launcher_alt
+mipmap ic_launcher_round
 string app_name
 style Theme.Strummer
 xml backup_rules

@@ -4,7 +4,7 @@
             "outputFile": "com.strummer.practice.app-mergeDebugResources-68:/values-v23/values-v23.xml",
             "map": [
                 {
-                    "source": "/home/neil/.gradle/caches/8.10.2/transforms/3e7a18747cec588e0ee64c96c3ae05c5/transformed/appcompat-1.6.1/res/values-v23/values-v23.xml",
+                    "source": "/home/neil/.gradle/caches/8.10.2/transforms/115750d30c7a134b2188bd822696a28b/transformed/appcompat-1.6.1/res/values-v23/values-v23.xml",
                     "from": {
                         "startLines": "2,3,4,5,6,20,34,35,36,39,43,44,45,46",
                         "startColumns": "4,4,4,4,4,4,4,4,4,4,4,4,4,4",
@@ -15,7 +15,7 @@
                     }
                 },
                 {
-                    "source": "/home/neil/.gradle/caches/8.10.2/transforms/6055c58bf950238344e540ca8971ab22/transformed/cardview-1.0.0/res/values-v23/values-v23.xml",
+                    "source": "/home/neil/.gradle/caches/8.10.2/transforms/765a533ec1642345d3e5b6c8828ec86a/transformed/cardview-1.0.0/res/values-v23/values-v23.xml",
                     "from": {
                         "startLines": "2",
                         "startColumns": "4",
@@ -34,7 +34,7 @@
                     }
                 },
                 {
-                    "source": "/home/neil/.gradle/caches/8.10.2/transforms/5ac74200f6d538b63d9aee032c0d51fb/transformed/material-1.12.0/res/values-v23/values-v23.xml",
+                    "source": "/home/neil/.gradle/caches/8.10.2/transforms/8e0670e41c7a946e17a9eeea6e693950/transformed/material-1.12.0/res/values-v23/values-v23.xml",
                     "from": {
                         "startLines": "2,5,9,13,16,19,22,25,28,32",
                         "startColumns": "4,4,4,4,4,4,4,4,4,4",
