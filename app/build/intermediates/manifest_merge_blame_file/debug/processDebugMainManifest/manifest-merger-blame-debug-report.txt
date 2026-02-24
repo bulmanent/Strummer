@@ -27,12 +27,12 @@
 19-->[androidx.core:core:1.15.0] /home/neil/.gradle/caches/8.10.2/transforms/a00962a798bc46333e1bc41853c0fcf4/transformed/core-1.15.0/AndroidManifest.xml:28:18-86
 20        android:debuggable="true"
 21        android:extractNativeLibs="false"
-22        android:icon="@android:drawable/ic_media_play"
-22-->/home/neil/StudioProjects/Strummer/app/src/main/AndroidManifest.xml:6:9-55
+22        android:icon="@mipmap/ic_launcher"
+22-->/home/neil/StudioProjects/Strummer/app/src/main/AndroidManifest.xml:6:9-43
 23        android:label="Strummer"
 23-->/home/neil/StudioProjects/Strummer/app/src/main/AndroidManifest.xml:7:9-33
-24        android:roundIcon="@android:drawable/ic_media_play"
-24-->/home/neil/StudioProjects/Strummer/app/src/main/AndroidManifest.xml:8:9-60
+24        android:roundIcon="@mipmap/ic_launcher_round"
+24-->/home/neil/StudioProjects/Strummer/app/src/main/AndroidManifest.xml:8:9-54
 25        android:supportsRtl="true"
 25-->/home/neil/StudioProjects/Strummer/app/src/main/AndroidManifest.xml:9:9-35
 26        android:theme="@style/Theme.Strummer" >

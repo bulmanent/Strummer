@@ -125,9 +125,9 @@ MERGED from [androidx.versionedparcelable:versionedparcelable:1.1.1] /home/neil/
 	android:label
 		ADDED from /home/neil/StudioProjects/Strummer/app/src/main/AndroidManifest.xml:7:9-33
 	android:roundIcon
-		ADDED from /home/neil/StudioProjects/Strummer/app/src/main/AndroidManifest.xml:8:9-60
+		ADDED from /home/neil/StudioProjects/Strummer/app/src/main/AndroidManifest.xml:8:9-54
 	android:icon
-		ADDED from /home/neil/StudioProjects/Strummer/app/src/main/AndroidManifest.xml:6:9-55
+		ADDED from /home/neil/StudioProjects/Strummer/app/src/main/AndroidManifest.xml:6:9-43
 	android:allowBackup
 		ADDED from /home/neil/StudioProjects/Strummer/app/src/main/AndroidManifest.xml:5:9-35
 	android:theme

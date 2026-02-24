@@ -1,10 +1,54 @@
 [
     {
-        "merged": "com.strummer.practice.app-debug-70:/xml_backup_rules.xml.flat",
-        "source": "com.strummer.practice.app-main-72:/xml/backup_rules.xml"
+        "merged": "com.strummer.practice.app-debug-70:/mipmap-anydpi-v26_ic_launcher.xml.flat",
+        "source": "com.strummer.practice.app-main-72:/mipmap-anydpi-v26/ic_launcher.xml"
     },
     {
-        "merged": "com.strummer.practice.app-debug-70:/xml_data_extraction_rules.xml.flat",
-        "source": "com.strummer.practice.app-main-72:/xml/data_extraction_rules.xml"
+        "merged": "com.strummer.practice.app-debug-70:/drawable_ic_launcher_foreground_neon.xml.flat",
+        "source": "com.strummer.practice.app-main-72:/drawable/ic_launcher_foreground_neon.xml"
+    },
+    {
+        "merged": "com.strummer.practice.app-debug-70:/mipmap-anydpi-v26_ic_launcher_alt.xml.flat",
+        "source": "com.strummer.practice.app-main-72:/mipmap-anydpi-v26/ic_launcher_alt.xml"
+    },
+    {
+        "merged": "/home/neil/.gradle/daemon/8.10.2/com.strummer.practice.app-debug-70:/drawable_ic_launcher_foreground.xml.flat",
+        "source": "/home/neil/.gradle/daemon/8.10.2/com.strummer.practice.app-main-72:/drawable/ic_launcher_foreground.xml"
+    },
+    {
+        "merged": "/home/neil/.gradle/daemon/8.10.2/com.strummer.practice.app-debug-70:/mipmap-anydpi-v26_ic_launcher.xml.flat",
+        "source": "/home/neil/.gradle/daemon/8.10.2/com.strummer.practice.app-main-72:/mipmap-anydpi-v26/ic_launcher.xml"
+    },
+    {
+        "merged": "/home/neil/.gradle/daemon/8.10.2/com.strummer.practice.app-debug-70:/xml_data_extraction_rules.xml.flat",
+        "source": "/home/neil/.gradle/daemon/8.10.2/com.strummer.practice.app-main-72:/xml/data_extraction_rules.xml"
+    },
+    {
+        "merged": "com.strummer.practice.app-debug-70:/mipmap-anydpi-v26_ic_launcher_round.xml.flat",
+        "source": "com.strummer.practice.app-main-72:/mipmap-anydpi-v26/ic_launcher_round.xml"
+    },
+    {
+        "merged": "com.strummer.practice.app-debug-70:/drawable_ic_launcher_background_neon.xml.flat",
+        "source": "com.strummer.practice.app-main-72:/drawable/ic_launcher_background_neon.xml"
+    },
+    {
+        "merged": "/home/neil/.gradle/daemon/8.10.2/com.strummer.practice.app-debug-70:/mipmap-anydpi-v26_ic_launcher_round.xml.flat",
+        "source": "/home/neil/.gradle/daemon/8.10.2/com.strummer.practice.app-main-72:/mipmap-anydpi-v26/ic_launcher_round.xml"
+    },
+    {
+        "merged": "/home/neil/.gradle/daemon/8.10.2/com.strummer.practice.app-debug-70:/drawable_ic_launcher_background.xml.flat",
+        "source": "/home/neil/.gradle/daemon/8.10.2/com.strummer.practice.app-main-72:/drawable/ic_launcher_background.xml"
+    },
+    {
+        "merged": "com.strummer.practice.app-debug-70:/drawable_ic_launcher_background_retro.xml.flat",
+        "source": "com.strummer.practice.app-main-72:/drawable/ic_launcher_background_retro.xml"
+    },
+    {
+        "merged": "/home/neil/.gradle/daemon/8.10.2/com.strummer.practice.app-debug-70:/xml_backup_rules.xml.flat",
+        "source": "/home/neil/.gradle/daemon/8.10.2/com.strummer.practice.app-main-72:/xml/backup_rules.xml"
+    },
+    {
+        "merged": "com.strummer.practice.app-debug-70:/drawable_ic_launcher_foreground_retro.xml.flat",
+        "source": "com.strummer.practice.app-main-72:/drawable/ic_launcher_foreground_retro.xml"
     }
 ]
