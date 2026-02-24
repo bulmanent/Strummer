@@ -1,0 +1,10 @@
+[
+    {
+        "merged": "com.strummer.practice.app-debug-70:/xml_backup_rules.xml.flat",
+        "source": "com.strummer.practice.app-main-72:/xml/backup_rules.xml"
+    },
+    {
+        "merged": "com.strummer.practice.app-debug-70:/xml_data_extraction_rules.xml.flat",
+        "source": "com.strummer.practice.app-main-72:/xml/data_extraction_rules.xml"
+    }
+]

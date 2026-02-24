@@ -1,0 +1,64 @@
+{
+  "songs": [
+    {
+      "title": "Knocking on Heaven's Door",
+      "sections": [
+        {
+          "name": "Verse",
+          "bars": [
+            { "chord": "G", "beatsPerBar": 4, "patternId": "folk_8" },
+            { "chord": "D", "beatsPerBar": 4, "patternId": "folk_8" },
+            { "chord": "Am", "beatsPerBar": 4, "patternId": "folk_8" },
+            { "chord": "G", "beatsPerBar": 4, "patternId": "folk_8" }
+          ]
+        },
+        {
+          "name": "Chorus",
+          "bars": [
+            { "chord": "G", "beatsPerBar": 4, "patternId": "basic_8_down_up" },
+            { "chord": "D", "beatsPerBar": 4, "patternId": "basic_8_down_up" },
+            { "chord": "C", "beatsPerBar": 4, "patternId": "basic_8_down_up" },
+            { "chord": "C", "beatsPerBar": 4, "patternId": "basic_8_down_up" }
+          ]
+        }
+      ]
+    },
+    {
+      "title": "Let It Be",
+      "sections": [
+        {
+          "name": "Verse",
+          "bars": [
+            { "chord": "C", "beatsPerBar": 4, "patternId": "folk_8" },
+            { "chord": "G", "beatsPerBar": 4, "patternId": "folk_8" },
+            { "chord": "Am", "beatsPerBar": 4, "patternId": "folk_8" },
+            { "chord": "F", "beatsPerBar": 4, "patternId": "folk_8" }
+          ]
+        },
+        {
+          "name": "Bridge",
+          "bars": [
+            { "chord": "Am", "beatsPerBar": 4, "patternId": "basic_8_down_up" },
+            { "chord": "G", "beatsPerBar": 4, "patternId": "basic_8_down_up" },
+            { "chord": "F", "beatsPerBar": 4, "patternId": "basic_8_down_up" },
+            { "chord": "C", "beatsPerBar": 4, "patternId": "basic_8_down_up" }
+          ]
+        }
+      ]
+    },
+    {
+      "title": "Stand By Me",
+      "sections": [
+        {
+          "name": "Main",
+          "bars": [
+            { "chord": "G", "beatsPerBar": 4, "patternId": "basic_8_down_up" },
+            { "chord": "Em", "beatsPerBar": 4, "patternId": "basic_8_down_up" },
+            { "chord": "C", "beatsPerBar": 4, "patternId": "basic_8_down_up" },
+            { "chord": "D", "beatsPerBar": 4, "patternId": "basic_8_down_up" }
+          ]
+        }
+      ]
+    }
+  ]
+}
