@@ -9,7 +9,6 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
-import androidx.compose.material3.Button
 import androidx.compose.material3.Card
 import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.FilterChip
@@ -37,7 +36,6 @@ fun CustomPracticeScreen(
     contentPadding: PaddingValues = PaddingValues()
 ) {
     val state by viewModel.uiState.collectAsStateWithLifecycle()
-    var useDslPattern by remember { mutableStateOf(true) }
     var patternsExpanded by remember { mutableStateOf(false) }
 
     Column(
@@ -69,18 +67,18 @@ fun CustomPracticeScreen(
 
                 Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                     FilterChip(
-                        selected = useDslPattern,
-                        onClick = { useDslPattern = true },
+                        selected = state.useDslPattern,
+                        onClick = { viewModel.setPatternMode(true) },
                         label = { Text("DSL Pattern") }
                     )
                     FilterChip(
-                        selected = !useDslPattern,
-                        onClick = { useDslPattern = false },
+                        selected = !state.useDslPattern,
+                        onClick = { viewModel.setPatternMode(false) },
                         label = { Text("Preset Pattern") }
                     )
                 }
 
-                if (useDslPattern) {
+                if (state.useDslPattern) {
                     OutlinedTextField(
                         value = state.patternDsl,
                         onValueChange = viewModel::setPatternDsl,
@@ -128,7 +126,7 @@ fun CustomPracticeScreen(
         }
 
         PatternStepsRow(
-            pattern = if (useDslPattern) {
+            pattern = if (state.useDslPattern) {
                 runCatching {
                     PatternDslParser.parse(
                         id = "preview",
@@ -152,13 +150,6 @@ fun CustomPracticeScreen(
                     valueRange = 40f..160f
                 )
             }
-        }
-
-        Button(
-            onClick = { viewModel.togglePlayback(useDslPattern) },
-            modifier = Modifier.fillMaxWidth()
-        ) {
-            Text(if (state.isPlaying) "Pause" else "Play")
         }
     }
 }

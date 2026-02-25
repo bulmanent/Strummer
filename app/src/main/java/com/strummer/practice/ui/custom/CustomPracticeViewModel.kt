@@ -23,6 +23,7 @@ data class CustomPracticeUiState(
     val patternDsl: String = "D D U U D U",
     val chordSequenceInput: String = "A C D G",
     val beatsPerBar: Int = 4,
+    val useDslPattern: Boolean = true,
     val tempoBpm: Int = 80,
     val isPlaying: Boolean = false,
     val currentStepIndex: Int = 0,
@@ -106,6 +107,10 @@ class CustomPracticeViewModel(
         _uiState.value = _uiState.value.copy(beatsPerBar = beats)
     }
 
+    fun setPatternMode(useDslPattern: Boolean) {
+        _uiState.value = _uiState.value.copy(useDslPattern = useDslPattern)
+    }
+
     fun setTempo(bpm: Int) {
         val safe = bpm.coerceIn(40, 160)
         _uiState.value = _uiState.value.copy(tempoBpm = safe)
@@ -113,7 +118,7 @@ class CustomPracticeViewModel(
         if (_uiState.value.isPlaying) audioEngine.setBpm(safe)
     }
 
-    fun togglePlayback(useDslPattern: Boolean) {
+    fun togglePlayback() {
         if (_uiState.value.isPlaying) {
             audioEngine.stop()
             _uiState.value = _uiState.value.copy(errorMessage = "")
@@ -121,7 +126,7 @@ class CustomPracticeViewModel(
         }
 
         val state = _uiState.value
-        val pattern = if (useDslPattern) {
+        val pattern = if (state.useDslPattern) {
             runCatching {
                 PatternDslParser.parse(
                     id = "custom-dsl",

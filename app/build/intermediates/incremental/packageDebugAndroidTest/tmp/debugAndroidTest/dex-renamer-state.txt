@@ -1,0 +1,4 @@
+#Tue Feb 24 15:11:24 GMT 2026
+base.0=/home/neil/StudioProjects/Strummer/app/build/intermediates/dex/debugAndroidTest/mergeProjectDexDebugAndroidTest/0/classes.dex
+path.0=0/classes.dex
+renamed.0=classes.dex

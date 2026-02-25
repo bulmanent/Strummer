@@ -9,11 +9,14 @@ import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.padding
+import androidx.compose.material3.Button
+import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.NavigationBar
 import androidx.compose.material3.NavigationBarItem
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Text
+import androidx.compose.material3.TopAppBar
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.getValue
@@ -22,6 +25,7 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.unit.dp
+import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.lifecycle.viewmodel.compose.viewModel
 import com.strummer.practice.repo.ChordLibraryRepository
 import com.strummer.practice.ui.custom.CustomPracticeScreen
@@ -49,8 +53,10 @@ class MainActivity : ComponentActivity() {
 }
 
 @Composable
+@OptIn(ExperimentalMaterial3Api::class)
 private fun StrummerApp(container: AppContainer) {
     var selectedTab by remember { mutableIntStateOf(0) }
+    var lastPracticeTab by remember { mutableIntStateOf(0) }
 
     val songsViewModel: SongsViewModel = viewModel(
         factory = SongsViewModel.factory(
@@ -68,14 +74,44 @@ private fun StrummerApp(container: AppContainer) {
         )
     )
 
+    val isPlaying by container.audioEngine.isPlaying.collectAsStateWithLifecycle()
     Scaffold(
         modifier = Modifier.fillMaxSize(),
+        topBar = {
+            TopAppBar(
+                title = { Text("Strummer") },
+                actions = {
+                    Button(
+                        onClick = {
+                            if (isPlaying) {
+                                container.audioEngine.stop()
+                                return@Button
+                            }
+
+                            val playTab = if (selectedTab == 2) lastPracticeTab else selectedTab
+                            when (playTab) {
+                                1 -> customViewModel.togglePlayback()
+                                else -> songsViewModel.togglePlayback()
+                            }
+                        },
+                        modifier = Modifier.padding(end = 8.dp)
+                    ) {
+                        Text(if (isPlaying) "Stop" else "Play")
+                    }
+                }
+            )
+        },
         bottomBar = {
             NavigationBar {
                 listOf("Songs", "Custom Practice", "Chord Library").forEachIndexed { idx, label ->
                     NavigationBarItem(
                         selected = selectedTab == idx,
-                        onClick = { selectedTab = idx },
+                        onClick = {
+                            selectedTab = idx
+                            if (idx == 0 || idx == 1) {
+                                lastPracticeTab = idx
+                            }
+                        },
                         icon = { Text(if (idx == 0) "S" else if (idx == 1) "C" else "L") },
                         label = { Text(label) }
                     )
