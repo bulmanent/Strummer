@@ -1,245 +1,470 @@
 package com.strummer.practice.ui.songs
 
+import android.net.Uri
+import android.util.Log
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.ViewModelProvider
 import androidx.lifecycle.viewModelScope
-import com.strummer.practice.audio.PracticeAudioEngine
+import com.strummer.practice.audio.PlaybackService
 import com.strummer.practice.data.SettingsRepository
-import com.strummer.practice.model.PlaybackBar
-import com.strummer.practice.model.RampConfig
-import com.strummer.practice.model.Section
-import com.strummer.practice.model.Song
-import com.strummer.practice.model.StrumPattern
-import com.strummer.practice.repo.AssetRepository
-import kotlinx.coroutines.flow.first
+import com.strummer.practice.library.ActiveChordCue
+import com.strummer.practice.library.ChordEvent
+import com.strummer.practice.library.ChordTimelineService
+import com.strummer.practice.library.AudioFileStatus
+import com.strummer.practice.library.LibraryValidation
+import com.strummer.practice.library.PlaybackPracticeConfig
+import com.strummer.practice.library.PracticeProfile
+import com.strummer.practice.library.Song
+import com.strummer.practice.repo.SongRepository
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
+import kotlinx.coroutines.flow.collectLatest
 import kotlinx.coroutines.flow.combine
+import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.Job
 
 data class SongsUiState(
     val songs: List<Song> = emptyList(),
-    val patterns: List<StrumPattern> = emptyList(),
-    val selectedSongIndex: Int = 0,
-    val selectedSectionIndex: Int = 0,
-    val tempoBpm: Int = 80,
-    val rampEnabled: Boolean = false,
-    val rampStartBpm: Int = 60,
-    val rampEndBpm: Int = 100,
-    val rampIncrement: Int = 2,
-    val barsPerIncrement: Int = 4,
+    val selectedSongId: String? = null,
+    val selectedSongTitleInput: String = "",
+    val selectedSongArtistInput: String = "",
+    val importTitleInput: String = "",
+    val importArtistInput: String = "",
+    val chordEvents: List<ChordEvent> = emptyList(),
+    val currentCue: ChordEvent? = null,
+    val nextCue: ChordEvent? = null,
+    val timeToNextMs: Long? = null,
+    val positionMs: Long = 0L,
+    val durationMs: Long = 0L,
+    val speed: Float = 1.0f,
+    val steppedModeEnabled: Boolean = false,
+    val steppedStartSpeed: Float = 0.6f,
+    val steppedStepSize: Float = 0.05f,
+    val steppedTargetSpeed: Float = 1.0f,
+    val steppedLoopsPerSpeed: Int = 1,
+    val loopEnabled: Boolean = false,
+    val loopStartMs: Long? = null,
+    val loopEndMs: Long? = null,
+    val nextSteppedSpeed: Float? = null,
+    val pitchStatus: String = "Pitch correction active",
     val isPlaying: Boolean = false,
-    val currentBarIndex: Int = 0,
-    val currentStepIndex: Int = 0,
-    val currentChord: String = "",
-    val effectiveBpm: Int = 80,
-    val rampBarsUntilIncrement: Int = 0
+    val errorMessage: String? = null,
+    val infoMessage: String? = null,
+    val missingFileMessage: String? = null,
+    val selectedEventId: String? = null
 ) {
     val selectedSong: Song?
-        get() = songs.getOrNull(selectedSongIndex)
-
-    val selectedSection: Section?
-        get() = selectedSong?.sections?.getOrNull(selectedSectionIndex)
+        get() = songs.firstOrNull { it.id == selectedSongId }
 }
 
 class SongsViewModel(
-    private val assetRepository: AssetRepository,
+    private val songRepository: SongRepository,
     private val settingsRepository: SettingsRepository,
-    private val audioEngine: PracticeAudioEngine
+    private val playbackService: PlaybackService,
+    private val timelineService: ChordTimelineService
 ) : ViewModel() {
+    private var chordEventsJob: Job? = null
+    private var practiceProfileJob: Job? = null
+    private var observedSongId: String? = null
+
     private val _uiState = MutableStateFlow(SongsUiState())
     val uiState: StateFlow<SongsUiState> = _uiState.asStateFlow()
 
     init {
-        observeEngine()
-        loadData()
+        observeSongs()
+        observePlayback()
     }
 
-    private fun observeEngine() {
+    private fun observeSongs() {
+        viewModelScope.launch {
+            val lastSongTitle = settingsRepository.settingsFlow.first().lastSongTitle
+            songRepository.songsFlow().collectLatest { songs ->
+                val currentSelected = _uiState.value.selectedSongId
+                val resolvedId = when {
+                    currentSelected != null && songs.any { it.id == currentSelected } -> currentSelected
+                    lastSongTitle.isNotBlank() -> songs.firstOrNull { it.title == lastSongTitle }?.id
+                    else -> songs.firstOrNull()?.id
+                }
+
+                _uiState.value = _uiState.value.copy(
+                    songs = songs,
+                    selectedSongId = resolvedId,
+                    selectedSongTitleInput = songs.firstOrNull { it.id == resolvedId }?.title.orEmpty(),
+                    selectedSongArtistInput = songs.firstOrNull { it.id == resolvedId }?.artist.orEmpty()
+                )
+
+                if (resolvedId != null) {
+                    observeSongSpecificFlows(resolvedId)
+                } else {
+                    _uiState.value = _uiState.value.copy(
+                        chordEvents = emptyList(),
+                        currentCue = null,
+                        nextCue = null,
+                        timeToNextMs = null,
+                        missingFileMessage = null
+                    )
+                }
+            }
+        }
+    }
+
+    private fun observeSongSpecificFlows(songId: String) {
+        if (observedSongId == songId) return
+        observedSongId = songId
+        chordEventsJob?.cancel()
+        practiceProfileJob?.cancel()
+
+        chordEventsJob = viewModelScope.launch {
+            songRepository.chordEventsFlow(songId).collect { events ->
+                _uiState.value = _uiState.value.copy(chordEvents = events)
+                recalculateCue(_uiState.value.positionMs)
+            }
+        }
+
+        practiceProfileJob = viewModelScope.launch {
+            songRepository.practiceProfileFlow(songId).collect { profile ->
+                applyProfile(profile)
+            }
+        }
+
+        val selectedSong = _uiState.value.songs.firstOrNull { it.id == songId } ?: return
+        when (val status = songRepository.audioFileStatus(selectedSong)) {
+            AudioFileStatus.Available -> {
+                _uiState.value = _uiState.value.copy(missingFileMessage = null)
+                playbackService.load(selectedSong.audioFilePath)
+            }
+
+            is AudioFileStatus.Missing -> {
+                _uiState.value = _uiState.value.copy(missingFileMessage = status.message)
+            }
+        }
+
+        viewModelScope.launch {
+            settingsRepository.updateSongSelection(selectedSong.title, "")
+        }
+    }
+
+    private fun observePlayback() {
         viewModelScope.launch {
             combine(
-                audioEngine.isPlaying,
-                audioEngine.currentBarIndex,
-                audioEngine.currentStepIndex,
-                audioEngine.currentChord,
-                audioEngine.currentBpm
-            ) { playing, bar, step, chord, bpm ->
-                EngineUi(playing, bar, step, chord, bpm, _uiState.value.rampBarsUntilIncrement)
-            }.collect { ui ->
+                playbackService.isPlaying,
+                playbackService.positionMs,
+                playbackService.durationMs,
+                playbackService.speed
+            ) { isPlaying, position, duration, speed ->
+                PlaybackUi(isPlaying, position, duration, speed)
+            }.collect { playback ->
                 _uiState.value = _uiState.value.copy(
-                    isPlaying = ui.isPlaying,
-                    currentBarIndex = ui.barIndex,
-                    currentStepIndex = ui.stepIndex,
-                    currentChord = ui.chord,
-                    effectiveBpm = ui.bpm,
-                    rampBarsUntilIncrement = ui.barsUntilIncrement
+                    isPlaying = playback.isPlaying,
+                    positionMs = playback.positionMs,
+                    durationMs = playback.durationMs,
+                    speed = playback.speed
                 )
+                recalculateCue(playback.positionMs)
             }
         }
 
         viewModelScope.launch {
-            audioEngine.rampProgress.collect { ramp ->
-                _uiState.value = _uiState.value.copy(rampBarsUntilIncrement = ramp.barsUntilIncrement)
+            playbackService.nextSteppedSpeed.collect { value ->
+                _uiState.value = _uiState.value.copy(nextSteppedSpeed = value)
             }
         }
-
         viewModelScope.launch {
-            settingsRepository.settingsFlow.collect { settings ->
-                _uiState.value = _uiState.value.copy(
-                    tempoBpm = settings.tempoBpm,
-                    rampEnabled = settings.rampEnabled,
-                    rampStartBpm = settings.rampStartBpm,
-                    rampEndBpm = settings.rampEndBpm,
-                    rampIncrement = settings.rampIncrement,
-                    barsPerIncrement = settings.barsPerIncrement
-                )
+            playbackService.pitchStatus.collect { value ->
+                _uiState.value = _uiState.value.copy(pitchStatus = value)
+            }
+        }
+        viewModelScope.launch {
+            playbackService.error.collect { value ->
+                _uiState.value = _uiState.value.copy(errorMessage = value)
             }
         }
     }
 
-    private fun loadData() {
-        viewModelScope.launch {
-            val songs = assetRepository.loadSongs()
-            val patterns = assetRepository.loadPatterns()
-            val settings = settingsRepository.settingsFlow.first()
-            val songIndex = songs.indexOfFirst { it.title == settings.lastSongTitle }.takeIf { it >= 0 } ?: 0
-            val sectionIndex = songs
-                .getOrNull(songIndex)
-                ?.sections
-                ?.indexOfFirst { it.name == settings.lastSectionName }
-                ?.takeIf { it >= 0 }
-                ?: 0
-            _uiState.value = _uiState.value.copy(
-                songs = songs,
-                patterns = patterns,
-                selectedSongIndex = songIndex,
-                selectedSectionIndex = sectionIndex
-            )
-        }
+    fun selectSong(songId: String) {
+        _uiState.value = _uiState.value.copy(selectedSongId = songId, infoMessage = null, errorMessage = null)
+        observeSongSpecificFlows(songId)
     }
 
-    fun selectSong(index: Int) {
-        val safeIndex = index.coerceAtLeast(0)
-        _uiState.value = _uiState.value.copy(selectedSongIndex = safeIndex, selectedSectionIndex = 0)
+    fun setImportTitle(value: String) {
+        _uiState.value = _uiState.value.copy(importTitleInput = value)
     }
 
-    fun selectSection(index: Int) {
-        _uiState.value = _uiState.value.copy(selectedSectionIndex = index.coerceAtLeast(0))
+    fun setImportArtist(value: String) {
+        _uiState.value = _uiState.value.copy(importArtistInput = value)
     }
 
-    fun setTempo(bpm: Int) {
-        val value = bpm.coerceIn(40, 160)
-        _uiState.value = _uiState.value.copy(tempoBpm = value)
-        viewModelScope.launch { settingsRepository.updateTempo(value) }
-        if (_uiState.value.isPlaying) {
-            audioEngine.setBpm(value)
-        }
+    fun setSelectedSongTitle(value: String) {
+        _uiState.value = _uiState.value.copy(selectedSongTitleInput = value)
     }
 
-    fun adjustTempo(delta: Int) = setTempo(_uiState.value.tempoBpm + delta)
-
-    fun setRampEnabled(enabled: Boolean) {
-        val current = _uiState.value
-        _uiState.value = current.copy(rampEnabled = enabled)
-        persistRamp()
-        if (current.isPlaying) audioEngine.setRamp(buildRampConfig())
+    fun setSelectedSongArtist(value: String) {
+        _uiState.value = _uiState.value.copy(selectedSongArtistInput = value)
     }
 
-    fun setRampStart(value: Int) {
-        _uiState.value = _uiState.value.copy(rampStartBpm = value.coerceIn(40, 160))
-        persistRamp()
-    }
+    fun importSong(uri: Uri) {
+        val state = _uiState.value
+        val title = state.importTitleInput.trim()
+        val artist = state.importArtistInput.trim().ifBlank { null }
 
-    fun setRampEnd(value: Int) {
-        _uiState.value = _uiState.value.copy(rampEndBpm = value.coerceIn(40, 160))
-        persistRamp()
-    }
-
-    fun setRampIncrement(value: Int) {
-        _uiState.value = _uiState.value.copy(rampIncrement = value.coerceAtLeast(1))
-        persistRamp()
-    }
-
-    fun setBarsPerIncrement(value: Int) {
-        _uiState.value = _uiState.value.copy(barsPerIncrement = value.coerceAtLeast(1))
-        persistRamp()
-    }
-
-    fun togglePlayback() {
-        if (_uiState.value.isPlaying) {
-            audioEngine.stop()
+        val validation = LibraryValidation.validateSongInput(title, "pending")
+        if (validation != null) {
+            _uiState.value = state.copy(errorMessage = validation)
             return
         }
 
-        val state = _uiState.value
-        val section = state.selectedSection ?: return
-
-        val patternsById = state.patterns.associateBy { it.id }
-        val bars = section.bars.mapNotNull { bar ->
-            patternsById[bar.patternId]?.let { pattern ->
-                PlaybackBar(chord = bar.chord, beatsPerBar = bar.beatsPerBar, pattern = pattern)
+        viewModelScope.launch {
+            runCatching {
+                songRepository.addSong(title = title, artist = artist, audioUri = uri)
+            }.onSuccess { song ->
+                _uiState.value = _uiState.value.copy(
+                    importTitleInput = "",
+                    importArtistInput = "",
+                    selectedSongId = song.id,
+                    selectedSongTitleInput = song.title,
+                    selectedSongArtistInput = song.artist.orEmpty(),
+                    infoMessage = "Imported ${song.title}",
+                    errorMessage = null
+                )
+                observeSongSpecificFlows(song.id)
+            }.onFailure { err ->
+                Log.e(TAG, "Import failed", err)
+                _uiState.value = _uiState.value.copy(errorMessage = err.message ?: "Import failed")
             }
         }
-
-        if (bars.isEmpty()) return
-
-        viewModelScope.launch {
-            settingsRepository.updateSongSelection(
-                state.selectedSong?.title.orEmpty(),
-                section.name
-            )
-        }
-        audioEngine.start(state.tempoBpm, bars, buildRampConfig())
     }
 
-    private fun persistRamp() {
+    fun saveSongEdits() {
         val state = _uiState.value
+        val songId = state.selectedSongId ?: return
+
         viewModelScope.launch {
-            settingsRepository.updateRamp(
-                enabled = state.rampEnabled,
-                start = state.rampStartBpm,
-                end = state.rampEndBpm,
-                increment = state.rampIncrement,
-                bars = state.barsPerIncrement
+            runCatching {
+                songRepository.updateSong(songId, state.selectedSongTitleInput, state.selectedSongArtistInput)
+            }.onSuccess {
+                _uiState.value = _uiState.value.copy(infoMessage = "Song updated", errorMessage = null)
+            }.onFailure {
+                _uiState.value = _uiState.value.copy(errorMessage = it.message ?: "Failed to update song")
+            }
+        }
+    }
+
+    fun deleteSelectedSong() {
+        val songId = _uiState.value.selectedSongId ?: return
+        viewModelScope.launch {
+            songRepository.deleteSong(songId)
+            _uiState.value = _uiState.value.copy(
+                selectedSongId = null,
+                selectedSongTitleInput = "",
+                selectedSongArtistInput = "",
+                infoMessage = "Song deleted"
             )
         }
     }
 
-    private fun buildRampConfig(): RampConfig {
-        val s = _uiState.value
-        return RampConfig(
-            enabled = s.rampEnabled,
-            startBpm = s.rampStartBpm,
-            endBpm = s.rampEndBpm,
-            increment = s.rampIncrement,
-            barsPerIncrement = s.barsPerIncrement
+    fun playPause() {
+        if (_uiState.value.isPlaying) {
+            playbackService.pause()
+        } else {
+            playbackService.play()
+        }
+    }
+
+    fun seekTo(positionMs: Long) {
+        playbackService.seekTo(positionMs)
+    }
+
+    fun setSpeed(speed: Float) {
+        _uiState.value = _uiState.value.copy(steppedModeEnabled = false)
+        playbackService.disableSteppedMode()
+        playbackService.setSpeed(speed)
+    }
+
+    fun addChordAtCurrentTime(chordName: String, note: String?) {
+        val songId = _uiState.value.selectedSongId ?: return
+        val timestamp = _uiState.value.positionMs
+        addChord(songId, timestamp, chordName, note)
+    }
+
+    fun addChordAtTimestamp(timestampMs: Long, chordName: String, note: String?) {
+        val songId = _uiState.value.selectedSongId ?: return
+        addChord(songId, timestampMs, chordName, note)
+    }
+
+    private fun addChord(songId: String, timestampMs: Long, chordName: String, note: String?) {
+        viewModelScope.launch {
+            runCatching {
+                songRepository.addChordEvent(songId, timestampMs, chordName, note)
+            }.onSuccess {
+                _uiState.value = _uiState.value.copy(errorMessage = null, infoMessage = "Chord added")
+            }.onFailure {
+                _uiState.value = _uiState.value.copy(errorMessage = it.message ?: "Failed to add chord")
+            }
+        }
+    }
+
+    fun updateChordEvent(eventId: String, timestampMs: Long, chordName: String, note: String?) {
+        val state = _uiState.value
+        val existing = state.chordEvents.firstOrNull { it.id == eventId } ?: return
+        val updated = existing.copy(
+            timestampMs = timestampMs,
+            chordName = chordName.trim(),
+            note = note?.trim().orEmpty().ifBlank { null }
+        )
+
+        viewModelScope.launch {
+            runCatching { songRepository.updateChordEvent(updated) }
+                .onFailure {
+                    _uiState.value = _uiState.value.copy(errorMessage = it.message ?: "Failed to update chord")
+                }
+        }
+    }
+
+    fun deleteChordEvent(eventId: String) {
+        viewModelScope.launch {
+            songRepository.deleteChordEvent(eventId)
+            _uiState.value = _uiState.value.copy(infoMessage = "Chord deleted")
+        }
+    }
+
+    fun selectEvent(eventId: String?) {
+        _uiState.value = _uiState.value.copy(selectedEventId = eventId)
+    }
+
+    fun setSteppedStartSpeed(value: Float) {
+        _uiState.value = _uiState.value.copy(steppedStartSpeed = value)
+        persistPracticeProfile()
+    }
+
+    fun setSteppedStepSize(value: Float) {
+        _uiState.value = _uiState.value.copy(steppedStepSize = value)
+        persistPracticeProfile()
+    }
+
+    fun setSteppedTargetSpeed(value: Float) {
+        _uiState.value = _uiState.value.copy(steppedTargetSpeed = value)
+        persistPracticeProfile()
+    }
+
+    fun setSteppedLoopsPerSpeed(value: Int) {
+        _uiState.value = _uiState.value.copy(steppedLoopsPerSpeed = value)
+        persistPracticeProfile()
+    }
+
+    fun setLoopEnabled(enabled: Boolean) {
+        _uiState.value = _uiState.value.copy(loopEnabled = enabled)
+        persistPracticeProfile()
+    }
+
+    fun setLoopStartMs(value: Long?) {
+        _uiState.value = _uiState.value.copy(loopStartMs = value)
+        persistPracticeProfile()
+    }
+
+    fun setLoopEndMs(value: Long?) {
+        _uiState.value = _uiState.value.copy(loopEndMs = value)
+        persistPracticeProfile()
+    }
+
+    fun setSteppedModeEnabled(enabled: Boolean) {
+        val state = _uiState.value
+        _uiState.value = state.copy(steppedModeEnabled = enabled)
+        if (!enabled) {
+            playbackService.disableSteppedMode()
+            return
+        }
+
+        val song = state.selectedSong ?: return
+        val config = state.asPracticeConfig()
+        val validation = LibraryValidation.validatePracticeConfig(config, song.durationMs)
+        if (validation != null) {
+            _uiState.value = state.copy(errorMessage = validation, steppedModeEnabled = false)
+            return
+        }
+
+        playbackService.enableSteppedMode(config)
+    }
+
+    fun resetSteppedMode() {
+        playbackService.resetSteppedMode()
+    }
+
+    private fun applyProfile(profile: PracticeProfile) {
+        _uiState.value = _uiState.value.copy(
+            steppedStartSpeed = profile.startSpeed,
+            steppedStepSize = profile.stepSize,
+            steppedTargetSpeed = profile.targetSpeed,
+            steppedLoopsPerSpeed = profile.loopsPerSpeed,
+            loopEnabled = profile.loopEnabled,
+            loopStartMs = profile.loopStartMs,
+            loopEndMs = profile.loopEndMs
+        )
+    }
+
+    private fun persistPracticeProfile() {
+        val state = _uiState.value
+        val songId = state.selectedSongId ?: return
+        viewModelScope.launch {
+            runCatching {
+                songRepository.upsertPracticeProfile(songId, state.asPracticeConfig())
+            }.onFailure {
+                _uiState.value = _uiState.value.copy(errorMessage = it.message ?: "Invalid practice settings")
+            }
+        }
+    }
+
+    private fun recalculateCue(positionMs: Long) {
+        val events = _uiState.value.chordEvents
+        val cue: ActiveChordCue = timelineService.cueAt(events, positionMs)
+        val timeToNext = cue.next?.timestampMs?.minus(positionMs)?.coerceAtLeast(0L)
+        _uiState.value = _uiState.value.copy(
+            currentCue = cue.current,
+            nextCue = cue.next,
+            timeToNextMs = timeToNext
         )
     }
 
     override fun onCleared() {
         super.onCleared()
+        chordEventsJob?.cancel()
+        practiceProfileJob?.cancel()
+        playbackService.release()
+    }
+
+    private fun SongsUiState.asPracticeConfig(): PlaybackPracticeConfig {
+        return PlaybackPracticeConfig(
+            startSpeed = steppedStartSpeed,
+            stepSize = steppedStepSize,
+            targetSpeed = steppedTargetSpeed,
+            loopsPerSpeed = steppedLoopsPerSpeed,
+            loopEnabled = loopEnabled,
+            loopStartMs = loopStartMs,
+            loopEndMs = loopEndMs
+        )
     }
 
     companion object {
+        private const val TAG = "SongsViewModel"
+
         fun factory(
-            assetRepository: AssetRepository,
+            songRepository: SongRepository,
             settingsRepository: SettingsRepository,
-            audioEngine: PracticeAudioEngine
+            playbackService: PlaybackService,
+            timelineService: ChordTimelineService
         ): ViewModelProvider.Factory = object : ViewModelProvider.Factory {
             @Suppress("UNCHECKED_CAST")
             override fun <T : ViewModel> create(modelClass: Class<T>): T {
-                return SongsViewModel(assetRepository, settingsRepository, audioEngine) as T
+                return SongsViewModel(songRepository, settingsRepository, playbackService, timelineService) as T
             }
         }
     }
 
-    private data class EngineUi(
+    private data class PlaybackUi(
         val isPlaying: Boolean,
-        val barIndex: Int,
-        val stepIndex: Int,
-        val chord: String,
-        val bpm: Int,
-        val barsUntilIncrement: Int
+        val positionMs: Long,
+        val durationMs: Long,
+        val speed: Float
     )
 }

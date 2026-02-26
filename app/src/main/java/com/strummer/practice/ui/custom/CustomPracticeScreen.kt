@@ -10,6 +10,7 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.Card
+import androidx.compose.material3.Button
 import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.FilterChip
 import androidx.compose.material3.MaterialTheme
@@ -144,6 +145,9 @@ fun CustomPracticeScreen(
         Card(modifier = Modifier.fillMaxWidth()) {
             Column(modifier = Modifier.padding(12.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
                 Text("Tempo ${state.tempoBpm} BPM")
+                Button(onClick = viewModel::togglePlayback) {
+                    Text(if (state.isPlaying) "Pause" else "Play")
+                }
                 Slider(
                     value = state.tempoBpm.toFloat(),
                     onValueChange = { viewModel.setTempo(it.toInt()) },

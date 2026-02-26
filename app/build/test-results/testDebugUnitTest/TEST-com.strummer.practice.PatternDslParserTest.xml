@@ -1,8 +1,8 @@
 <?xml version="1.0" encoding="UTF-8"?>
-<testsuite name="com.strummer.practice.PatternDslParserTest" tests="4" skipped="0" failures="0" errors="0" timestamp="2026-02-25T14:31:28" hostname="neil-latitude7490" time="0.071">
+<testsuite name="com.strummer.practice.PatternDslParserTest" tests="4" skipped="0" failures="0" errors="0" timestamp="2026-02-26T13:56:24" hostname="neil-latitude7490" time="0.033">
   <properties/>
-  <testcase name="parsesBasicDslTokens" classname="com.strummer.practice.PatternDslParserTest" time="0.042"/>
-  <testcase name="uppercaseNormalizationWorks" classname="com.strummer.practice.PatternDslParserTest" time="0.027"/>
+  <testcase name="parsesBasicDslTokens" classname="com.strummer.practice.PatternDslParserTest" time="0.031"/>
+  <testcase name="uppercaseNormalizationWorks" classname="com.strummer.practice.PatternDslParserTest" time="0.0"/>
   <testcase name="handlesExtraWhitespaceAndRests" classname="com.strummer.practice.PatternDslParserTest" time="0.0"/>
   <testcase name="failsOnInvalidToken" classname="com.strummer.practice.PatternDslParserTest" time="0.001"/>
   <system-out><![CDATA[]]></system-out>
