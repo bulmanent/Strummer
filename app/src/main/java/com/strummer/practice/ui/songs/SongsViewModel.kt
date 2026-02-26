@@ -21,6 +21,7 @@ import kotlinx.coroutines.flow.collectLatest
 import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.launch
+import kotlin.math.max
 
 data class SongsUiState(
     val songs: List<Song> = emptyList(),
@@ -214,6 +215,13 @@ class SongsViewModel(
         playbackService.seekTo(positionMs)
     }
 
+    fun seekByBars(deltaBars: Int) {
+        val state = _uiState.value
+        val barMs = computeBarDurationMs(state.tempoBpm, state.timeSignatureTop)
+        val deltaMs = barMs * deltaBars.toLong()
+        playbackService.seekTo((state.positionMs + deltaMs).coerceAtLeast(0L))
+    }
+
     fun setSpeed(speed: Float) {
         playbackService.setSpeed(speed)
     }
@@ -276,6 +284,71 @@ class SongsViewModel(
         }
     }
 
+    fun setStepStartToCurrentLoopBar(stepNumber: Int) {
+        val state = _uiState.value
+        state.selectedSongId ?: return
+        val steps = state.barSteps.sortedBy { it.displayOrder }
+        if (steps.isEmpty()) {
+            _uiState.value = state.copy(errorMessage = "No steps available")
+            return
+        }
+        if (stepNumber !in 1..steps.size) {
+            _uiState.value = state.copy(errorMessage = "Step number must be between 1 and ${steps.size}")
+            return
+        }
+
+        val index = stepNumber - 1
+        val starts = buildStepStarts(steps)
+        val nextStarts = starts.drop(1) + (state.totalLoopBars + 1)
+        val targetBar = state.loopBar
+
+        if (index == 0 && targetBar != 1) {
+            _uiState.value = state.copy(errorMessage = "Step 1 must start at bar 1")
+            return
+        }
+        if (index > 0) {
+            val minStart = starts[index - 1] + 1
+            val maxStartExclusive = nextStarts[index] - 1
+            val nextLabel = if (index + 1 < steps.size) "step ${stepNumber + 1}" else "the end of loop"
+            if (targetBar !in minStart..maxStartExclusive) {
+                _uiState.value = state.copy(
+                    errorMessage = "Invalid step order. Step $stepNumber must stay after step ${stepNumber - 1} and before $nextLabel."
+                )
+                return
+            }
+        }
+
+        if (starts[index] == targetBar) {
+            _uiState.value = state.copy(infoMessage = "Step $stepNumber already starts at bar $targetBar")
+            return
+        }
+
+        val prevIndex = index - 1
+        val nextStart = nextStarts[index]
+
+        viewModelScope.launch {
+            runCatching {
+                if (prevIndex >= 0) {
+                    val prev = steps[prevIndex]
+                    val prevStart = starts[prevIndex]
+                    val newPrevCount = targetBar - prevStart
+                    songRepository.updateBarStep(prev.copy(barCount = max(1, newPrevCount)))
+                }
+
+                val current = steps[index]
+                val newCurrentCount = nextStart - targetBar
+                songRepository.updateBarStep(current.copy(barCount = max(1, newCurrentCount)))
+            }.onSuccess {
+                _uiState.value = _uiState.value.copy(
+                    infoMessage = "Step $stepNumber set to bar $targetBar",
+                    errorMessage = null
+                )
+            }.onFailure {
+                _uiState.value = _uiState.value.copy(errorMessage = it.message ?: "Failed to set step location")
+            }
+        }
+    }
+
     private fun applyProfile(profile: PracticeProfile) {
         _uiState.value = _uiState.value.copy(
             tempoBpm = profile.tempoBpm,
@@ -328,6 +401,19 @@ class SongsViewModel(
             loopBar = resolved.loopBar,
             barsUntilNextChange = resolved.barsUntilNextChange
         )
+    }
+
+    private fun buildStepStarts(steps: List<BarChordStep>): List<Int> {
+        var start = 1
+        return steps.map {
+            val current = start
+            start += it.barCount
+            current
+        }
+    }
+
+    private fun computeBarDurationMs(tempoBpm: Int, timeSignatureTop: Int): Long {
+        return (60_000.0 / tempoBpm.toDouble() * timeSignatureTop.toDouble()).toLong().coerceAtLeast(1L)
     }
 
     override fun onCleared() {

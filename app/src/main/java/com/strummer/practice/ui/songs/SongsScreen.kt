@@ -47,6 +47,7 @@ fun SongsScreen(
     var pendingAddSongUri by remember { mutableStateOf<Uri?>(null) }
     var addChordName by remember { mutableStateOf("") }
     var addBarsInput by remember { mutableStateOf("4") }
+    var setStepInput by remember { mutableStateOf("1") }
 
     val picker = rememberLauncherForActivityResult(ActivityResultContracts.OpenDocument()) { uri ->
         pendingAddSongUri = uri
@@ -167,7 +168,24 @@ fun SongsScreen(
                             )
                         }
                     }
-                    Text(state.pitchStatus)
+                    Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                        Button(onClick = { viewModel.seekByBars(-1) }) { Text("-1 Bar") }
+                        Button(onClick = { viewModel.seekByBars(1) }) { Text("+1 Bar") }
+                    }
+                    Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                        OutlinedTextField(
+                            value = setStepInput,
+                            onValueChange = { setStepInput = it },
+                            label = { Text("Step #") },
+                            modifier = Modifier.weight(1f)
+                        )
+                        Button(onClick = {
+                            val stepNumber = setStepInput.toIntOrNull() ?: return@Button
+                            viewModel.setStepStartToCurrentLoopBar(stepNumber)
+                        }) {
+                            Text("Set Step")
+                        }
+                    }
                 }
             }
 
