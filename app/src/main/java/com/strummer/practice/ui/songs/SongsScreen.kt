@@ -14,9 +14,11 @@ import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.Button
 import androidx.compose.material3.Card
+import androidx.compose.material3.Checkbox
 import androidx.compose.material3.DropdownMenu
 import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.FilterChip
+import androidx.compose.material3.LinearProgressIndicator
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Slider
@@ -31,6 +33,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
+import com.strummer.practice.detection.ChordEventDraft
 import com.strummer.practice.library.ChordEvent
 import kotlin.math.roundToInt
 
@@ -90,8 +93,16 @@ fun SongsScreen(
                     readOnly = true,
                     modifier = Modifier.fillMaxWidth()
                 )
-                Button(onClick = { songsExpanded = true }, enabled = state.songs.isNotEmpty()) {
-                    Text("Choose Song")
+                Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                    Button(onClick = { songsExpanded = true }, enabled = state.songs.isNotEmpty()) {
+                        Text("Choose Song")
+                    }
+                    Button(
+                        onClick = viewModel::playPause,
+                        enabled = state.selectedSong != null && state.missingFileMessage == null
+                    ) {
+                        Text(if (state.isPlaying) "Pause" else "Play")
+                    }
                 }
                 DropdownMenu(expanded = songsExpanded, onDismissRequest = { songsExpanded = false }) {
                     state.songs.forEach { song ->
@@ -116,6 +127,10 @@ fun SongsScreen(
 
         if (state.selectedSong != null) {
             SongEditorCard(state = state, viewModel = viewModel)
+            DetectionCard(state = state, viewModel = viewModel)
+            if (state.showDetectionReview) {
+                DetectionReviewCard(state = state, viewModel = viewModel)
+            }
             CueCard(state = state)
             PlaybackCard(state = state, viewModel = viewModel)
             SteppedModeCard(state = state, viewModel = viewModel)
@@ -233,6 +248,56 @@ private fun SongEditorCard(state: SongsUiState, viewModel: SongsViewModel) {
 }
 
 @Composable
+private fun DetectionCard(state: SongsUiState, viewModel: SongsViewModel) {
+    Card(modifier = Modifier.fillMaxWidth()) {
+        Column(modifier = Modifier.padding(12.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+            Text("Auto-detect chords (beta)", style = MaterialTheme.typography.titleMedium)
+            Text("Draft suggestions only. Review and edit before applying.")
+            Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                Button(
+                    onClick = viewModel::runChordDetection,
+                    enabled = !state.detectionInProgress && state.missingFileMessage == null
+                ) {
+                    Text("Auto-detect chords (beta)")
+                }
+                if (state.detectionInProgress) {
+                    Button(onClick = viewModel::cancelChordDetection) {
+                        Text("Cancel")
+                    }
+                }
+            }
+            if (state.detectionInProgress) {
+                LinearProgressIndicator(progress = { state.detectionProgress }, modifier = Modifier.fillMaxWidth())
+                Text("Analyzing... ${(state.detectionProgress * 100f).roundToInt()}%")
+            }
+            if (state.detectionWarning != null) {
+                Text(state.detectionWarning ?: "", color = MaterialTheme.colorScheme.error)
+            }
+        }
+    }
+}
+
+@Composable
+private fun DetectionReviewCard(state: SongsUiState, viewModel: SongsViewModel) {
+    Card(modifier = Modifier.fillMaxWidth()) {
+        Column(modifier = Modifier.padding(12.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+            Text("Detection Review (Draft)", style = MaterialTheme.typography.titleMedium)
+            Text("Avg confidence: ${state.detectionAverageConfidence?.let { "%.2f".format(it) } ?: "-"}")
+            Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                Text("Replace existing timeline")
+                Switch(checked = state.detectionReplaceMode, onCheckedChange = viewModel::setDetectionReplaceMode)
+            }
+            DetectionDraftList(drafts = state.detectionDrafts, viewModel = viewModel)
+            Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                Button(onClick = viewModel::acceptAllDetectionDrafts) { Text("Accept All") }
+                Button(onClick = { viewModel.applyDetectionDrafts(selectedOnly = true) }) { Text("Accept Selected") }
+                Button(onClick = viewModel::discardDetectionDrafts) { Text("Discard All") }
+            }
+        }
+    }
+}
+
+@Composable
 private fun CueCard(state: SongsUiState) {
     Card(modifier = Modifier.fillMaxWidth()) {
         Column(modifier = Modifier.padding(12.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
@@ -254,9 +319,6 @@ private fun PlaybackCard(state: SongsUiState, viewModel: SongsViewModel) {
     Card(modifier = Modifier.fillMaxWidth()) {
         Column(modifier = Modifier.padding(12.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
             Text("Playback", style = MaterialTheme.typography.titleMedium)
-            Button(onClick = viewModel::playPause, enabled = state.missingFileMessage == null) {
-                Text(if (state.isPlaying) "Pause" else "Play")
-            }
 
             val safeDuration = state.durationMs.coerceAtLeast(1L)
             Slider(
@@ -396,6 +458,39 @@ private fun ChordEventList(events: List<ChordEvent>, viewModel: SongsViewModel) 
                             Text("Delete")
                         }
                     }
+                }
+            }
+        }
+    }
+}
+
+@Composable
+private fun DetectionDraftList(drafts: List<ChordEventDraft>, viewModel: SongsViewModel) {
+    Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+        drafts.forEach { draft ->
+            var chordValue by remember(draft.draftId, draft.editableChordName) { mutableStateOf(draft.editableChordName) }
+            Card(modifier = Modifier.fillMaxWidth()) {
+                Row(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(8.dp),
+                    horizontalArrangement = Arrangement.spacedBy(8.dp)
+                ) {
+                    Checkbox(
+                        checked = draft.include,
+                        onCheckedChange = { viewModel.setDraftInclude(draft.draftId, it) }
+                    )
+                    Text(formatMs(draft.timestampMs), modifier = Modifier.weight(1f))
+                    Text("${"%.2f".format(draft.confidence)}", modifier = Modifier.weight(1f))
+                    OutlinedTextField(
+                        value = chordValue,
+                        onValueChange = {
+                            chordValue = it
+                            viewModel.setDraftChordName(draft.draftId, it)
+                        },
+                        label = { Text("Chord") },
+                        modifier = Modifier.weight(2f)
+                    )
                 }
             }
         }

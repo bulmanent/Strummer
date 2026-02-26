@@ -74,6 +74,12 @@ To back up practice data, copy the `practice-library` folder from app internal f
   - loops per speed
   - optional loop range
   - reset to start speed
+- Auto-detect chords (beta):
+  - optional async analysis on selected song audio
+  - draft timestamped suggestions with confidence
+  - review/edit/include-exclude before apply
+  - accept all / accept selected / discard
+  - merge into timeline (append or replace mode)
 
 ## Validation and Error Handling
 - Import validates supported extension.
@@ -81,9 +87,28 @@ To back up practice data, copy the `practice-library` folder from app internal f
 - Missing/moved audio files are detected and surfaced with recovery guidance.
 - Corrupt metadata falls back to backup file when available.
 - Playback and import paths emit logs (`SongRepository`, `PlaybackService`, `PracticeLibraryStore`).
+- Detection failures are non-blocking and keep manual workflow available.
+
+## Auto-Detect Chords (Beta)
+- What it does:
+  - Generates draft chord-change suggestions (`timestamp + chord + confidence`) for review.
+- What it does not do:
+  - Does not detect strumming patterns.
+  - Does not auto-apply suggestions without user confirmation.
+- Accuracy expectations:
+  - This is a first-pass heuristic detector; manual correction is expected.
+  - Low-confidence runs show: `Low-confidence result. Please review before applying.`
+- Performance:
+  - Runs in background with progress updates and cancel action.
+  - Large files take longer.
+
+## Detection Troubleshooting
+- `Audio file not found`: song path is stale; re-import the track.
+- `Unsupported format`: use one of `.mp3`, `.m4a`, `.aac`, `.wav`, `.ogg`.
+- `No chord suggestions produced`: try cleaner audio or shorter loop sections.
+- `Chord detection failed`: detector error occurred; continue manual timeline editing.
 
 ## Known Limitations
-- No automatic chord detection.
 - No strumming-pattern inference.
 - Pitch-preserving speed depends on device playback capabilities.
 - No instrumentation UI flow test is included yet; current coverage is unit-test focused.

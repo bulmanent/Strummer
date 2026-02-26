@@ -1,9 +1,9 @@
 <?xml version="1.0" encoding="UTF-8"?>
-<testsuite name="com.strummer.practice.ChordTimelineServiceTest" tests="3" skipped="0" failures="0" errors="0" timestamp="2026-02-26T13:56:24" hostname="neil-latitude7490" time="0.03">
+<testsuite name="com.strummer.practice.ChordTimelineServiceTest" tests="3" skipped="0" failures="0" errors="0" timestamp="2026-02-26T15:45:01" hostname="neil-latitude7490" time="0.031">
   <properties/>
-  <testcase name="returnsCurrentAndNextCueAtPlaybackTime" classname="com.strummer.practice.ChordTimelineServiceTest" time="0.028"/>
+  <testcase name="returnsCurrentAndNextCueAtPlaybackTime" classname="com.strummer.practice.ChordTimelineServiceTest" time="0.029"/>
   <testcase name="sortsEventsByTimestamp" classname="com.strummer.practice.ChordTimelineServiceTest" time="0.001"/>
-  <testcase name="beforeFirstEventHasNoCurrentCue" classname="com.strummer.practice.ChordTimelineServiceTest" time="0.001"/>
+  <testcase name="beforeFirstEventHasNoCurrentCue" classname="com.strummer.practice.ChordTimelineServiceTest" time="0.0"/>
   <system-out><![CDATA[]]></system-out>
   <system-err><![CDATA[]]></system-err>
 </testsuite>

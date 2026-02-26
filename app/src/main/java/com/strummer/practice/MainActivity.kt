@@ -63,7 +63,10 @@ private fun StrummerApp(container: AppContainer) {
             container.songRepository,
             container.settingsRepository,
             container.playbackService,
-            container.chordTimelineService
+            container.chordTimelineService,
+            container.chordDetectionService,
+            container.detectedChordMapper,
+            container.chordDraftMergeService
         )
     )
 

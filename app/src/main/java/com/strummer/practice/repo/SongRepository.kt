@@ -162,6 +162,22 @@ class SongRepository(private val context: Context) {
         }
     }
 
+    suspend fun replaceSongChordEvents(songId: String, replacement: List<ChordEvent>) {
+        ensureSongExists(songId)
+        replacement.forEach { event ->
+            require(event.songId == songId) { "Chord event songId mismatch" }
+            val error = LibraryValidation.validateChordEvent(event.timestampMs, event.chordName)
+            require(error == null) { error ?: "Invalid chord event" }
+        }
+
+        mutateState { state ->
+            state.copy(
+                chordEvents = state.chordEvents.filterNot { it.songId == songId } +
+                    replacement.sortedWith(compareBy<ChordEvent> { it.timestampMs }.thenBy { it.id })
+            )
+        }
+    }
+
     suspend fun upsertPracticeProfile(songId: String, profile: PlaybackPracticeConfig) {
         val song = stateFlow.value.songs.firstOrNull { it.id == songId }
             ?: throw IllegalArgumentException("Song not found")

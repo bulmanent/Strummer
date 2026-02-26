@@ -7,15 +7,22 @@ import androidx.lifecycle.ViewModelProvider
 import androidx.lifecycle.viewModelScope
 import com.strummer.practice.audio.PlaybackService
 import com.strummer.practice.data.SettingsRepository
+import com.strummer.practice.detection.ChordDetectionOutcome
+import com.strummer.practice.detection.ChordDetectionParams
+import com.strummer.practice.detection.ChordDetectionService
+import com.strummer.practice.detection.ChordDraftMergeService
+import com.strummer.practice.detection.ChordEventDraft
+import com.strummer.practice.detection.DetectedChordMapper
 import com.strummer.practice.library.ActiveChordCue
+import com.strummer.practice.library.AudioFileStatus
 import com.strummer.practice.library.ChordEvent
 import com.strummer.practice.library.ChordTimelineService
-import com.strummer.practice.library.AudioFileStatus
 import com.strummer.practice.library.LibraryValidation
 import com.strummer.practice.library.PlaybackPracticeConfig
 import com.strummer.practice.library.PracticeProfile
 import com.strummer.practice.library.Song
 import com.strummer.practice.repo.SongRepository
+import kotlinx.coroutines.Job
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
@@ -23,7 +30,6 @@ import kotlinx.coroutines.flow.collectLatest
 import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.launch
-import kotlinx.coroutines.Job
 
 data class SongsUiState(
     val songs: List<Song> = emptyList(),
@@ -53,7 +59,14 @@ data class SongsUiState(
     val errorMessage: String? = null,
     val infoMessage: String? = null,
     val missingFileMessage: String? = null,
-    val selectedEventId: String? = null
+    val selectedEventId: String? = null,
+    val detectionInProgress: Boolean = false,
+    val detectionProgress: Float = 0f,
+    val detectionDrafts: List<ChordEventDraft> = emptyList(),
+    val detectionAverageConfidence: Float? = null,
+    val detectionWarning: String? = null,
+    val showDetectionReview: Boolean = false,
+    val detectionReplaceMode: Boolean = false
 ) {
     val selectedSong: Song?
         get() = songs.firstOrNull { it.id == selectedSongId }
@@ -63,11 +76,15 @@ class SongsViewModel(
     private val songRepository: SongRepository,
     private val settingsRepository: SettingsRepository,
     private val playbackService: PlaybackService,
-    private val timelineService: ChordTimelineService
+    private val timelineService: ChordTimelineService,
+    private val chordDetectionService: ChordDetectionService,
+    private val detectedChordMapper: DetectedChordMapper,
+    private val chordDraftMergeService: ChordDraftMergeService
 ) : ViewModel() {
     private var chordEventsJob: Job? = null
     private var practiceProfileJob: Job? = null
     private var observedSongId: String? = null
+    private var detectionJob: Job? = null
 
     private val _uiState = MutableStateFlow(SongsUiState())
     val uiState: StateFlow<SongsUiState> = _uiState.asStateFlow()
@@ -103,7 +120,9 @@ class SongsViewModel(
                         currentCue = null,
                         nextCue = null,
                         timeToNextMs = null,
-                        missingFileMessage = null
+                        missingFileMessage = null,
+                        detectionDrafts = emptyList(),
+                        showDetectionReview = false
                     )
                 }
             }
@@ -115,6 +134,7 @@ class SongsViewModel(
         observedSongId = songId
         chordEventsJob?.cancel()
         practiceProfileJob?.cancel()
+        detectionJob?.cancel()
 
         chordEventsJob = viewModelScope.launch {
             songRepository.chordEventsFlow(songId).collect { events ->
@@ -184,7 +204,13 @@ class SongsViewModel(
     }
 
     fun selectSong(songId: String) {
-        _uiState.value = _uiState.value.copy(selectedSongId = songId, infoMessage = null, errorMessage = null)
+        _uiState.value = _uiState.value.copy(
+            selectedSongId = songId,
+            infoMessage = null,
+            errorMessage = null,
+            detectionDrafts = emptyList(),
+            showDetectionReview = false
+        )
         observeSongSpecificFlows(songId)
     }
 
@@ -259,7 +285,9 @@ class SongsViewModel(
                 selectedSongId = null,
                 selectedSongTitleInput = "",
                 selectedSongArtistInput = "",
-                infoMessage = "Song deleted"
+                infoMessage = "Song deleted",
+                detectionDrafts = emptyList(),
+                showDetectionReview = false
             )
         }
     }
@@ -391,6 +419,154 @@ class SongsViewModel(
         playbackService.resetSteppedMode()
     }
 
+    fun runChordDetection() {
+        val state = _uiState.value
+        val song = state.selectedSong ?: return
+        if (song.audioFilePath.isBlank()) {
+            _uiState.value = state.copy(errorMessage = "No audio path found for this song")
+            return
+        }
+
+        detectionJob?.cancel()
+        detectionJob = viewModelScope.launch {
+            _uiState.value = _uiState.value.copy(
+                detectionInProgress = true,
+                detectionProgress = 0f,
+                errorMessage = null,
+                infoMessage = "Running auto-detect chords (beta)...",
+                detectionWarning = null,
+                showDetectionReview = false
+            )
+
+            val outcome = chordDetectionService.detect(
+                audioFilePath = song.audioFilePath,
+                params = ChordDetectionParams(),
+                onProgress = { progress ->
+                    _uiState.value = _uiState.value.copy(detectionProgress = progress)
+                }
+            )
+
+            when (outcome) {
+                is ChordDetectionOutcome.Failure -> {
+                    _uiState.value = _uiState.value.copy(
+                        detectionInProgress = false,
+                        detectionProgress = 0f,
+                        errorMessage = outcome.message,
+                        infoMessage = null,
+                        detectionDrafts = emptyList(),
+                        showDetectionReview = false
+                    )
+                }
+
+                is ChordDetectionOutcome.Success -> {
+                    val drafts = detectedChordMapper.toDrafts(outcome.events)
+                    val lowConfidence = outcome.averageConfidence < LOW_CONFIDENCE_THRESHOLD
+                    _uiState.value = _uiState.value.copy(
+                        detectionInProgress = false,
+                        detectionProgress = 1f,
+                        detectionDrafts = drafts,
+                        detectionAverageConfidence = outcome.averageConfidence,
+                        detectionWarning = if (lowConfidence) {
+                            "Low-confidence result. Please review before applying."
+                        } else {
+                            null
+                        },
+                        showDetectionReview = true,
+                        infoMessage = "Detection complete (${drafts.size} suggestions, ${outcome.detectorVersion})"
+                    )
+                }
+            }
+        }
+    }
+
+    fun cancelChordDetection() {
+        detectionJob?.cancel()
+        _uiState.value = _uiState.value.copy(
+            detectionInProgress = false,
+            detectionProgress = 0f,
+            infoMessage = "Detection cancelled"
+        )
+    }
+
+    fun setDraftInclude(draftId: String, include: Boolean) {
+        _uiState.value = _uiState.value.copy(
+            detectionDrafts = _uiState.value.detectionDrafts.map { draft ->
+                if (draft.draftId == draftId) draft.copy(include = include) else draft
+            }
+        )
+    }
+
+    fun setDraftChordName(draftId: String, chordName: String) {
+        _uiState.value = _uiState.value.copy(
+            detectionDrafts = _uiState.value.detectionDrafts.map { draft ->
+                if (draft.draftId == draftId) {
+                    draft.copy(editableChordName = detectedChordMapper.normalizeChordName(chordName))
+                } else {
+                    draft
+                }
+            }
+        )
+    }
+
+    fun acceptAllDetectionDrafts() {
+        _uiState.value = _uiState.value.copy(
+            detectionDrafts = _uiState.value.detectionDrafts.map { it.copy(include = true) }
+        )
+        applyDetectionDrafts(selectedOnly = false)
+    }
+
+    fun applyDetectionDrafts(selectedOnly: Boolean = true) {
+        val state = _uiState.value
+        val songId = state.selectedSongId ?: return
+
+        val draftsToApply = if (selectedOnly) {
+            state.detectionDrafts.filter { it.include }
+        } else {
+            state.detectionDrafts
+        }
+
+        if (draftsToApply.isEmpty()) {
+            _uiState.value = state.copy(errorMessage = "No selected suggestions to apply")
+            return
+        }
+
+        val merged = chordDraftMergeService.merge(
+            existing = state.chordEvents,
+            drafts = draftsToApply,
+            songId = songId,
+            replaceMode = state.detectionReplaceMode
+        )
+
+        viewModelScope.launch {
+            runCatching {
+                songRepository.replaceSongChordEvents(songId, merged)
+            }.onSuccess {
+                _uiState.value = _uiState.value.copy(
+                    infoMessage = "Applied ${draftsToApply.size} auto-detected suggestions",
+                    showDetectionReview = false,
+                    detectionDrafts = emptyList(),
+                    detectionWarning = null
+                )
+            }.onFailure {
+                _uiState.value = _uiState.value.copy(errorMessage = it.message ?: "Failed to apply detection drafts")
+            }
+        }
+    }
+
+    fun discardDetectionDrafts() {
+        _uiState.value = _uiState.value.copy(
+            detectionDrafts = emptyList(),
+            showDetectionReview = false,
+            detectionWarning = null,
+            detectionAverageConfidence = null,
+            infoMessage = "Discarded detection drafts"
+        )
+    }
+
+    fun setDetectionReplaceMode(replace: Boolean) {
+        _uiState.value = _uiState.value.copy(detectionReplaceMode = replace)
+    }
+
     private fun applyProfile(profile: PracticeProfile) {
         _uiState.value = _uiState.value.copy(
             steppedStartSpeed = profile.startSpeed,
@@ -430,6 +606,7 @@ class SongsViewModel(
         super.onCleared()
         chordEventsJob?.cancel()
         practiceProfileJob?.cancel()
+        detectionJob?.cancel()
         playbackService.release()
     }
 
@@ -447,16 +624,28 @@ class SongsViewModel(
 
     companion object {
         private const val TAG = "SongsViewModel"
+        private const val LOW_CONFIDENCE_THRESHOLD = 0.55f
 
         fun factory(
             songRepository: SongRepository,
             settingsRepository: SettingsRepository,
             playbackService: PlaybackService,
-            timelineService: ChordTimelineService
+            timelineService: ChordTimelineService,
+            chordDetectionService: ChordDetectionService,
+            detectedChordMapper: DetectedChordMapper,
+            chordDraftMergeService: ChordDraftMergeService
         ): ViewModelProvider.Factory = object : ViewModelProvider.Factory {
             @Suppress("UNCHECKED_CAST")
             override fun <T : ViewModel> create(modelClass: Class<T>): T {
-                return SongsViewModel(songRepository, settingsRepository, playbackService, timelineService) as T
+                return SongsViewModel(
+                    songRepository = songRepository,
+                    settingsRepository = settingsRepository,
+                    playbackService = playbackService,
+                    timelineService = timelineService,
+                    chordDetectionService = chordDetectionService,
+                    detectedChordMapper = detectedChordMapper,
+                    chordDraftMergeService = chordDraftMergeService
+                ) as T
             }
         }
     }

@@ -1,0 +1,9 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<testsuite name="com.strummer.practice.detection.ChordDetectionServiceFailureTest" tests="3" skipped="0" failures="0" errors="0" timestamp="2026-02-26T15:45:00" hostname="neil-latitude7490" time="0.064">
+  <properties/>
+  <testcase name="failsOnEmptyDetectorOutput" classname="com.strummer.practice.detection.ChordDetectionServiceFailureTest" time="0.061"/>
+  <testcase name="failsOnDetectorException" classname="com.strummer.practice.detection.ChordDetectionServiceFailureTest" time="0.002"/>
+  <testcase name="failsWhenAudioFileMissing" classname="com.strummer.practice.detection.ChordDetectionServiceFailureTest" time="0.0"/>
+  <system-out><![CDATA[]]></system-out>
+  <system-err><![CDATA[]]></system-err>
+</testsuite>

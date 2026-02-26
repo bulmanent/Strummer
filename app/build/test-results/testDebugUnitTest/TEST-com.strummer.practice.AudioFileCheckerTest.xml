@@ -1,7 +1,7 @@
 <?xml version="1.0" encoding="UTF-8"?>
-<testsuite name="com.strummer.practice.AudioFileCheckerTest" tests="2" skipped="0" failures="0" errors="0" timestamp="2026-02-26T13:56:23" hostname="neil-latitude7490" time="0.015">
+<testsuite name="com.strummer.practice.AudioFileCheckerTest" tests="2" skipped="0" failures="0" errors="0" timestamp="2026-02-26T15:45:00" hostname="neil-latitude7490" time="0.017">
   <properties/>
-  <testcase name="reportsAvailableFile" classname="com.strummer.practice.AudioFileCheckerTest" time="0.003"/>
+  <testcase name="reportsAvailableFile" classname="com.strummer.practice.AudioFileCheckerTest" time="0.005"/>
   <testcase name="reportsMissingFile" classname="com.strummer.practice.AudioFileCheckerTest" time="0.011"/>
   <system-out><![CDATA[]]></system-out>
   <system-err><![CDATA[]]></system-err>
