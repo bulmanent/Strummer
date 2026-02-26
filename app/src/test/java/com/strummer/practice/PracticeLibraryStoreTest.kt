@@ -36,7 +36,7 @@ class PracticeLibraryStoreTest {
                 ChordEvent(id = "evt-1", songId = "song-1", timestampMs = 1000L, chordName = "G")
             ),
             practiceProfiles = listOf(
-                PracticeProfile(songId = "song-1", startSpeed = 0.6f, stepSize = 0.05f, targetSpeed = 1.0f)
+                PracticeProfile(songId = "song-1", tempoBpm = 100, timeSignatureTop = 4, timeSignatureBottom = 4)
             )
         )
 

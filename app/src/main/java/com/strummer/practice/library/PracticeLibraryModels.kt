@@ -25,13 +25,18 @@ data class ChordEvent(
 @Serializable
 data class PracticeProfile(
     val songId: String,
-    val startSpeed: Float = 0.6f,
-    val stepSize: Float = 0.05f,
-    val targetSpeed: Float = 1.0f,
-    val loopsPerSpeed: Int = 1,
-    val loopEnabled: Boolean = false,
-    val loopStartMs: Long? = null,
-    val loopEndMs: Long? = null
+    val tempoBpm: Int = 100,
+    val timeSignatureTop: Int = 4,
+    val timeSignatureBottom: Int = 4
+)
+
+@Serializable
+data class BarChordStep(
+    val id: String,
+    val songId: String,
+    val displayOrder: Int,
+    val barCount: Int,
+    val chordName: String
 )
 
 @Serializable
@@ -39,7 +44,8 @@ data class PracticeLibraryState(
     val schemaVersion: Int = 1,
     val songs: List<Song> = emptyList(),
     val chordEvents: List<ChordEvent> = emptyList(),
-    val practiceProfiles: List<PracticeProfile> = emptyList()
+    val practiceProfiles: List<PracticeProfile> = emptyList(),
+    val barChordSteps: List<BarChordStep> = emptyList()
 )
 
 data class PlaybackPracticeConfig(

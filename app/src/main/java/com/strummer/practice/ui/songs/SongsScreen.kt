@@ -14,15 +14,12 @@ import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.Button
 import androidx.compose.material3.Card
-import androidx.compose.material3.Checkbox
 import androidx.compose.material3.DropdownMenu
 import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.FilterChip
-import androidx.compose.material3.LinearProgressIndicator
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Slider
-import androidx.compose.material3.Switch
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
@@ -33,8 +30,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
-import com.strummer.practice.detection.ChordEventDraft
-import com.strummer.practice.library.ChordEvent
+import com.strummer.practice.library.BarChordStep
 import kotlin.math.roundToInt
 
 @Composable
@@ -44,14 +40,16 @@ fun SongsScreen(
     contentPadding: PaddingValues = PaddingValues()
 ) {
     val state by viewModel.uiState.collectAsStateWithLifecycle()
-    var pickedUri by remember { mutableStateOf<Uri?>(null) }
     var songsExpanded by remember { mutableStateOf(false) }
+    var pendingAddSongUri by remember { mutableStateOf<Uri?>(null) }
     var addChordName by remember { mutableStateOf("") }
-    var addChordNote by remember { mutableStateOf("") }
-    var addTimestampInput by remember { mutableStateOf("0") }
+    var addBarsInput by remember { mutableStateOf("4") }
 
     val picker = rememberLauncherForActivityResult(ActivityResultContracts.OpenDocument()) { uri ->
-        pickedUri = uri
+        pendingAddSongUri = uri
+        if (uri != null) {
+            viewModel.addSong(uri)
+        }
     }
 
     Column(
@@ -70,32 +68,20 @@ fun SongsScreen(
             Text(state.infoMessage ?: "", color = MaterialTheme.colorScheme.primary)
         }
 
-        ImportCard(
-            title = state.importTitleInput,
-            artist = state.importArtistInput,
-            selectedUri = pickedUri,
-            onTitleChange = viewModel::setImportTitle,
-            onArtistChange = viewModel::setImportArtist,
-            onPick = { picker.launch(arrayOf("audio/mpeg", "audio/mp3", "audio/*")) },
-            onImport = {
-                val uri = pickedUri ?: return@ImportCard
-                viewModel.importSong(uri)
-                pickedUri = null
-            }
-        )
-
         Card(modifier = Modifier.fillMaxWidth()) {
             Column(modifier = Modifier.padding(12.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
                 OutlinedTextField(
-                    value = state.selectedSong?.title ?: "",
-                    onValueChange = {},
-                    label = { Text("Selected Song") },
-                    readOnly = true,
+                    value = state.songTitleInput,
+                    onValueChange = viewModel::setSongTitleInput,
+                    label = { Text("Title") },
                     modifier = Modifier.fillMaxWidth()
                 )
                 Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                    Button(onClick = { picker.launch(arrayOf("audio/mpeg", "audio/mp3", "audio/*")) }) {
+                        Text("Add")
+                    }
                     Button(onClick = { songsExpanded = true }, enabled = state.songs.isNotEmpty()) {
-                        Text("Choose Song")
+                        Text("Select")
                     }
                     Button(
                         onClick = viewModel::playPause,
@@ -117,27 +103,91 @@ fun SongsScreen(
                 }
 
                 if (state.songs.isEmpty()) {
-                    Text("Library is empty. Import an MP3 to start.")
+                    Text("No songs yet. Enter title and tap Add.")
                 }
                 if (state.missingFileMessage != null) {
                     Text(state.missingFileMessage ?: "", color = MaterialTheme.colorScheme.error)
+                }
+                if (pendingAddSongUri != null) {
+                    Text("Imported: ${pendingAddSongUri.toString()}")
                 }
             }
         }
 
         if (state.selectedSong != null) {
-            SongEditorCard(state = state, viewModel = viewModel)
-            DetectionCard(state = state, viewModel = viewModel)
-            if (state.showDetectionReview) {
-                DetectionReviewCard(state = state, viewModel = viewModel)
+            Card(modifier = Modifier.fillMaxWidth()) {
+                Column(modifier = Modifier.padding(12.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                    Text("Song Metadata", style = MaterialTheme.typography.titleMedium)
+                    Text("Title: ${state.selectedSong?.title.orEmpty()}")
+                    Text("Source path: ${state.selectedSong?.audioFilePath.orEmpty()}")
+                    Text("Duration: ${formatMs(state.durationMs)}")
+                    Button(onClick = viewModel::deleteSelectedSong) { Text("Delete") }
+                }
             }
-            CueCard(state = state)
-            PlaybackCard(state = state, viewModel = viewModel)
-            SteppedModeCard(state = state, viewModel = viewModel)
+
+            Card(modifier = Modifier.fillMaxWidth()) {
+                Column(modifier = Modifier.padding(12.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                    Text("Playback", style = MaterialTheme.typography.titleMedium)
+                    Text(
+                        text = state.currentChord,
+                        style = MaterialTheme.typography.displaySmall,
+                        fontWeight = FontWeight.Bold
+                    )
+                    Text("Next: ${state.nextChord} (${state.barsUntilNextChange} bars)")
+                    Text("Bar ${state.absoluteBar} (Loop ${state.loopBar}/${state.totalLoopBars.coerceAtLeast(1)})")
+
+                    val safeDuration = state.durationMs.coerceAtLeast(1L)
+                    Slider(
+                        value = state.positionMs.coerceAtMost(safeDuration).toFloat(),
+                        onValueChange = { viewModel.seekTo(it.toLong()) },
+                        valueRange = 0f..safeDuration.toFloat()
+                    )
+                    Text("${formatMs(state.positionMs)} / ${formatMs(state.durationMs)}")
+
+                    Text("Speed ${"%.2f".format(state.speed)}x")
+                    Slider(
+                        value = state.speed,
+                        onValueChange = viewModel::setSpeed,
+                        valueRange = 0.5f..1.25f
+                    )
+                    Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                        listOf(0.6f, 0.7f, 0.8f, 0.9f, 1.0f).forEach { speed ->
+                            FilterChip(
+                                selected = kotlin.math.abs(state.speed - speed) < 0.005f,
+                                onClick = { viewModel.setSpeed(speed) },
+                                label = { Text("${"%.1f".format(speed)}x") }
+                            )
+                        }
+                    }
+                    Text(state.pitchStatus)
+                }
+            }
 
             Card(modifier = Modifier.fillMaxWidth()) {
                 Column(modifier = Modifier.padding(12.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
                     Text("Chord Timeline", style = MaterialTheme.typography.titleMedium)
+                    Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                        OutlinedTextField(
+                            value = state.tempoBpm.toString(),
+                            onValueChange = { it.toIntOrNull()?.let(viewModel::setTempoBpm) },
+                            label = { Text("Tempo (BPM)") },
+                            modifier = Modifier.weight(1f)
+                        )
+                        OutlinedTextField(
+                            value = state.timeSignatureTop.toString(),
+                            onValueChange = { it.toIntOrNull()?.let(viewModel::setTimeSignatureTop) },
+                            label = { Text("Time Sig Top") },
+                            modifier = Modifier.weight(1f)
+                        )
+                        OutlinedTextField(
+                            value = "${state.timeSignatureBottom}",
+                            onValueChange = {},
+                            readOnly = true,
+                            label = { Text("Bottom") },
+                            modifier = Modifier.weight(1f)
+                        )
+                    }
+
                     Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                         OutlinedTextField(
                             value = addChordName,
@@ -146,40 +196,24 @@ fun SongsScreen(
                             modifier = Modifier.weight(1f)
                         )
                         OutlinedTextField(
-                            value = addChordNote,
-                            onValueChange = { addChordNote = it },
-                            label = { Text("Note") },
-                            modifier = Modifier.weight(1f)
-                        )
-                    }
-                    Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                        Button(onClick = {
-                            viewModel.addChordAtCurrentTime(addChordName, addChordNote)
-                            addChordName = ""
-                            addChordNote = ""
-                        }) {
-                            Text("Add @ Current")
-                        }
-                        OutlinedTextField(
-                            value = addTimestampInput,
-                            onValueChange = { addTimestampInput = it },
-                            label = { Text("Timestamp ms") },
+                            value = addBarsInput,
+                            onValueChange = { addBarsInput = it },
+                            label = { Text("Bars") },
                             modifier = Modifier.weight(1f)
                         )
                         Button(onClick = {
-                            val timestamp = addTimestampInput.toLongOrNull() ?: return@Button
-                            viewModel.addChordAtTimestamp(timestamp, addChordName, addChordNote)
+                            val bars = addBarsInput.toIntOrNull() ?: return@Button
+                            viewModel.addStep(addChordName, bars)
                             addChordName = ""
-                            addChordNote = ""
                         }) {
-                            Text("Add")
+                            Text("Add Step")
                         }
                     }
 
-                    if (state.chordEvents.isEmpty()) {
-                        Text("No chord events yet.")
+                    if (state.barSteps.isEmpty()) {
+                        Text("No steps yet. Example: G 4, D 4, Am 8...")
                     } else {
-                        ChordEventList(events = state.chordEvents, viewModel = viewModel)
+                        BarStepList(state.barSteps, viewModel)
                     }
                 }
             }
@@ -188,252 +222,19 @@ fun SongsScreen(
 }
 
 @Composable
-private fun ImportCard(
-    title: String,
-    artist: String,
-    selectedUri: Uri?,
-    onTitleChange: (String) -> Unit,
-    onArtistChange: (String) -> Unit,
-    onPick: () -> Unit,
-    onImport: () -> Unit
-) {
-    Card(modifier = Modifier.fillMaxWidth()) {
-        Column(modifier = Modifier.padding(12.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
-            Text("Import Song", style = MaterialTheme.typography.titleMedium)
-            OutlinedTextField(
-                value = title,
-                onValueChange = onTitleChange,
-                label = { Text("Title") },
-                modifier = Modifier.fillMaxWidth()
-            )
-            OutlinedTextField(
-                value = artist,
-                onValueChange = onArtistChange,
-                label = { Text("Artist (optional)") },
-                modifier = Modifier.fillMaxWidth()
-            )
-            Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                Button(onClick = onPick) { Text("Pick MP3") }
-                Button(onClick = onImport, enabled = selectedUri != null) { Text("Import") }
-            }
-            Text(selectedUri?.toString() ?: "No file selected")
-        }
-    }
-}
-
-@Composable
-private fun SongEditorCard(state: SongsUiState, viewModel: SongsViewModel) {
-    Card(modifier = Modifier.fillMaxWidth()) {
-        Column(modifier = Modifier.padding(12.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
-            Text("Song Metadata", style = MaterialTheme.typography.titleMedium)
-            OutlinedTextField(
-                value = state.selectedSongTitleInput,
-                onValueChange = viewModel::setSelectedSongTitle,
-                label = { Text("Title") },
-                modifier = Modifier.fillMaxWidth()
-            )
-            OutlinedTextField(
-                value = state.selectedSongArtistInput,
-                onValueChange = viewModel::setSelectedSongArtist,
-                label = { Text("Artist") },
-                modifier = Modifier.fillMaxWidth()
-            )
-            Text("Source path: ${state.selectedSong?.audioFilePath.orEmpty()}")
-            Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                Button(onClick = viewModel::saveSongEdits) { Text("Save") }
-                Button(onClick = viewModel::deleteSelectedSong) { Text("Delete") }
-            }
-        }
-    }
-}
-
-@Composable
-private fun DetectionCard(state: SongsUiState, viewModel: SongsViewModel) {
-    Card(modifier = Modifier.fillMaxWidth()) {
-        Column(modifier = Modifier.padding(12.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
-            Text("Auto-detect chords (beta)", style = MaterialTheme.typography.titleMedium)
-            Text("Draft suggestions only. Review and edit before applying.")
-            Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                Button(
-                    onClick = viewModel::runChordDetection,
-                    enabled = !state.detectionInProgress && state.missingFileMessage == null
-                ) {
-                    Text("Auto-detect chords (beta)")
-                }
-                if (state.detectionInProgress) {
-                    Button(onClick = viewModel::cancelChordDetection) {
-                        Text("Cancel")
-                    }
-                }
-            }
-            if (state.detectionInProgress) {
-                LinearProgressIndicator(progress = { state.detectionProgress }, modifier = Modifier.fillMaxWidth())
-                Text("Analyzing... ${(state.detectionProgress * 100f).roundToInt()}%")
-            }
-            if (state.detectionWarning != null) {
-                Text(state.detectionWarning ?: "", color = MaterialTheme.colorScheme.error)
-            }
-        }
-    }
-}
-
-@Composable
-private fun DetectionReviewCard(state: SongsUiState, viewModel: SongsViewModel) {
-    Card(modifier = Modifier.fillMaxWidth()) {
-        Column(modifier = Modifier.padding(12.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
-            Text("Detection Review (Draft)", style = MaterialTheme.typography.titleMedium)
-            Text("Avg confidence: ${state.detectionAverageConfidence?.let { "%.2f".format(it) } ?: "-"}")
-            Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                Text("Replace existing timeline")
-                Switch(checked = state.detectionReplaceMode, onCheckedChange = viewModel::setDetectionReplaceMode)
-            }
-            DetectionDraftList(drafts = state.detectionDrafts, viewModel = viewModel)
-            Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                Button(onClick = viewModel::acceptAllDetectionDrafts) { Text("Accept All") }
-                Button(onClick = { viewModel.applyDetectionDrafts(selectedOnly = true) }) { Text("Accept Selected") }
-                Button(onClick = viewModel::discardDetectionDrafts) { Text("Discard All") }
-            }
-        }
-    }
-}
-
-@Composable
-private fun CueCard(state: SongsUiState) {
-    Card(modifier = Modifier.fillMaxWidth()) {
-        Column(modifier = Modifier.padding(12.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
-            Text("Chord Cues", style = MaterialTheme.typography.titleMedium)
-            Text(
-                text = state.currentCue?.chordName ?: "-",
-                style = MaterialTheme.typography.displaySmall,
-                fontWeight = FontWeight.Bold
-            )
-            val nextLabel = state.nextCue?.chordName ?: "-"
-            val nextTime = state.timeToNextMs?.let { "in ${formatMs(it)}" } ?: ""
-            Text("Next: $nextLabel $nextTime")
-        }
-    }
-}
-
-@Composable
-private fun PlaybackCard(state: SongsUiState, viewModel: SongsViewModel) {
-    Card(modifier = Modifier.fillMaxWidth()) {
-        Column(modifier = Modifier.padding(12.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
-            Text("Playback", style = MaterialTheme.typography.titleMedium)
-
-            val safeDuration = state.durationMs.coerceAtLeast(1L)
-            Slider(
-                value = state.positionMs.coerceAtMost(safeDuration).toFloat(),
-                onValueChange = { viewModel.seekTo(it.toLong()) },
-                valueRange = 0f..safeDuration.toFloat()
-            )
-            Text("${formatMs(state.positionMs)} / ${formatMs(state.durationMs)}")
-
-            Text("Speed ${"%.2f".format(state.speed)}x")
-            Slider(
-                value = state.speed,
-                onValueChange = viewModel::setSpeed,
-                valueRange = 0.5f..1.25f
-            )
-            Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                listOf(0.6f, 0.7f, 0.8f, 0.9f, 1.0f).forEach { speed ->
-                    FilterChip(
-                        selected = kotlin.math.abs(state.speed - speed) < 0.005f,
-                        onClick = { viewModel.setSpeed(speed) },
-                        label = { Text("${"%.1f".format(speed)}x") }
-                    )
-                }
-            }
-            Text(state.pitchStatus)
-        }
-    }
-}
-
-@Composable
-private fun SteppedModeCard(state: SongsUiState, viewModel: SongsViewModel) {
-    Card(modifier = Modifier.fillMaxWidth()) {
-        Column(modifier = Modifier.padding(12.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
-            Text("Stepped Speed Practice", style = MaterialTheme.typography.titleMedium)
-            Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                Text("Enabled")
-                Switch(
-                    checked = state.steppedModeEnabled,
-                    onCheckedChange = viewModel::setSteppedModeEnabled
-                )
-                Button(onClick = viewModel::resetSteppedMode) { Text("Reset") }
-            }
-            Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                OutlinedTextField(
-                    value = state.steppedStartSpeed.toString(),
-                    onValueChange = { it.toFloatOrNull()?.let(viewModel::setSteppedStartSpeed) },
-                    label = { Text("Start") },
-                    modifier = Modifier.weight(1f)
-                )
-                OutlinedTextField(
-                    value = state.steppedStepSize.toString(),
-                    onValueChange = { it.toFloatOrNull()?.let(viewModel::setSteppedStepSize) },
-                    label = { Text("Step") },
-                    modifier = Modifier.weight(1f)
-                )
-                OutlinedTextField(
-                    value = state.steppedTargetSpeed.toString(),
-                    onValueChange = { it.toFloatOrNull()?.let(viewModel::setSteppedTargetSpeed) },
-                    label = { Text("Target") },
-                    modifier = Modifier.weight(1f)
-                )
-            }
-            Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                OutlinedTextField(
-                    value = state.steppedLoopsPerSpeed.toString(),
-                    onValueChange = { it.toIntOrNull()?.let(viewModel::setSteppedLoopsPerSpeed) },
-                    label = { Text("Loops/Speed") },
-                    modifier = Modifier.weight(1f)
-                )
-                Row(horizontalArrangement = Arrangement.spacedBy(4.dp), modifier = Modifier.weight(1f)) {
-                    Text("Loop")
-                    Switch(checked = state.loopEnabled, onCheckedChange = viewModel::setLoopEnabled)
-                }
-            }
-            Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                OutlinedTextField(
-                    value = state.loopStartMs?.toString() ?: "",
-                    onValueChange = { viewModel.setLoopStartMs(it.toLongOrNull()) },
-                    label = { Text("Loop Start ms") },
-                    modifier = Modifier.weight(1f)
-                )
-                OutlinedTextField(
-                    value = state.loopEndMs?.toString() ?: "",
-                    onValueChange = { viewModel.setLoopEndMs(it.toLongOrNull()) },
-                    label = { Text("Loop End ms") },
-                    modifier = Modifier.weight(1f)
-                )
-            }
-            Text("Current: ${"%.2f".format(state.speed)}x")
-            Text("Next: ${state.nextSteppedSpeed?.let { "%.2f".format(it) } ?: "-"}x")
-        }
-    }
-}
-
-@Composable
-private fun ChordEventList(events: List<ChordEvent>, viewModel: SongsViewModel) {
-    Column(
-        modifier = Modifier.fillMaxWidth(),
-        verticalArrangement = Arrangement.spacedBy(8.dp)
-    ) {
-        events.forEach { event ->
-            var timestamp by remember(event.id, event.timestampMs) { mutableStateOf(event.timestampMs.toString()) }
-            var chord by remember(event.id, event.chordName) { mutableStateOf(event.chordName) }
-            var note by remember(event.id, event.note) { mutableStateOf(event.note.orEmpty()) }
+private fun BarStepList(steps: List<BarChordStep>, viewModel: SongsViewModel) {
+    var runningBar = 1
+    Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+        steps.sortedBy { it.displayOrder }.forEach { step ->
+            val stepStartBar = runningBar
+            runningBar += step.barCount
+            var chord by remember(step.id, step.chordName) { mutableStateOf(step.chordName) }
+            var bars by remember(step.id, step.barCount) { mutableStateOf(step.barCount.toString()) }
 
             Card(modifier = Modifier.fillMaxWidth()) {
-                Column(modifier = Modifier.padding(10.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {
-                    Text("${formatMs(event.timestampMs)}")
+                Column(modifier = Modifier.padding(8.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {
+                    Text("Bar $stepStartBar")
                     Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                        OutlinedTextField(
-                            value = timestamp,
-                            onValueChange = { timestamp = it },
-                            label = { Text("Timestamp ms") },
-                            modifier = Modifier.weight(1f)
-                        )
                         OutlinedTextField(
                             value = chord,
                             onValueChange = { chord = it },
@@ -441,56 +242,23 @@ private fun ChordEventList(events: List<ChordEvent>, viewModel: SongsViewModel) 
                             modifier = Modifier.weight(1f)
                         )
                         OutlinedTextField(
-                            value = note,
-                            onValueChange = { note = it },
-                            label = { Text("Note") },
+                            value = bars,
+                            onValueChange = { bars = it },
+                            label = { Text("Bars") },
                             modifier = Modifier.weight(1f)
                         )
                     }
                     Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                         Button(onClick = {
-                            val ts = timestamp.toLongOrNull() ?: return@Button
-                            viewModel.updateChordEvent(event.id, ts, chord, note)
+                            val count = bars.toIntOrNull() ?: return@Button
+                            viewModel.updateStep(step.id, chord, count)
                         }) {
-                            Text("Save")
+                            Text("Update")
                         }
-                        Button(onClick = { viewModel.deleteChordEvent(event.id) }) {
-                            Text("Delete")
+                        Button(onClick = { viewModel.deleteStep(step.id) }) {
+                            Text("Delete Step")
                         }
                     }
-                }
-            }
-        }
-    }
-}
-
-@Composable
-private fun DetectionDraftList(drafts: List<ChordEventDraft>, viewModel: SongsViewModel) {
-    Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
-        drafts.forEach { draft ->
-            var chordValue by remember(draft.draftId, draft.editableChordName) { mutableStateOf(draft.editableChordName) }
-            Card(modifier = Modifier.fillMaxWidth()) {
-                Row(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .padding(8.dp),
-                    horizontalArrangement = Arrangement.spacedBy(8.dp)
-                ) {
-                    Checkbox(
-                        checked = draft.include,
-                        onCheckedChange = { viewModel.setDraftInclude(draft.draftId, it) }
-                    )
-                    Text(formatMs(draft.timestampMs), modifier = Modifier.weight(1f))
-                    Text("${"%.2f".format(draft.confidence)}", modifier = Modifier.weight(1f))
-                    OutlinedTextField(
-                        value = chordValue,
-                        onValueChange = {
-                            chordValue = it
-                            viewModel.setDraftChordName(draft.draftId, it)
-                        },
-                        label = { Text("Chord") },
-                        modifier = Modifier.weight(2f)
-                    )
                 }
             }
         }

@@ -1,8 +1,0 @@
-<?xml version="1.0" encoding="UTF-8"?>
-<testsuite name="com.strummer.practice.detection.ChordDetectionPostProcessorTest" tests="2" skipped="0" failures="0" errors="0" timestamp="2026-02-26T15:45:02" hostname="neil-latitude7490" time="0.004">
-  <properties/>
-  <testcase name="enforcesOrderingAndConfidenceBounds" classname="com.strummer.practice.detection.ChordDetectionPostProcessorTest" time="0.003"/>
-  <testcase name="smoothsAndCollapsesUltraShortSegments" classname="com.strummer.practice.detection.ChordDetectionPostProcessorTest" time="0.001"/>
-  <system-out><![CDATA[]]></system-out>
-  <system-err><![CDATA[]]></system-err>
-</testsuite>

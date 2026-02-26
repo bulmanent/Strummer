@@ -8,9 +8,8 @@ import android.provider.OpenableColumns
 import android.util.Log
 import com.strummer.practice.library.AudioFileChecker
 import com.strummer.practice.library.AudioFileStatus
-import com.strummer.practice.library.ChordEvent
+import com.strummer.practice.library.BarChordStep
 import com.strummer.practice.library.LibraryValidation
-import com.strummer.practice.library.PlaybackPracticeConfig
 import com.strummer.practice.library.PracticeLibraryState
 import com.strummer.practice.library.PracticeProfile
 import com.strummer.practice.library.Song
@@ -35,11 +34,11 @@ class SongRepository(private val context: Context) {
 
     fun songsFlow(): Flow<List<Song>> = stateFlow.map { it.songs.sortedByDescending(Song::updatedAt) }
 
-    fun chordEventsFlow(songId: String): Flow<List<ChordEvent>> =
+    fun barStepsFlow(songId: String): Flow<List<BarChordStep>> =
         stateFlow.map { state ->
-            state.chordEvents
+            state.barChordSteps
                 .filter { it.songId == songId }
-                .sortedWith(compareBy<ChordEvent> { it.timestampMs }.thenBy { it.id })
+                .sortedBy { it.displayOrder }
         }
 
     fun practiceProfileFlow(songId: String): Flow<PracticeProfile> =
@@ -48,7 +47,7 @@ class SongRepository(private val context: Context) {
                 ?: PracticeProfile(songId = songId)
         }
 
-    suspend fun addSong(title: String, artist: String?, audioUri: Uri): Song {
+    suspend fun addSong(title: String, audioUri: Uri): Song {
         val sourceName = guessSourceName(audioUri)
         val ext = sourceName.substringAfterLast('.', "").lowercase()
         if (ext !in SUPPORTED_EXTENSIONS) {
@@ -69,7 +68,7 @@ class SongRepository(private val context: Context) {
         val song = Song(
             id = UUID.randomUUID().toString(),
             title = title.trim(),
-            artist = artist?.trim().orEmpty().ifBlank { null },
+            artist = null,
             audioFilePath = destFile.absolutePath,
             durationMs = duration,
             createdAt = now,
@@ -84,7 +83,7 @@ class SongRepository(private val context: Context) {
         return song
     }
 
-    suspend fun updateSong(songId: String, title: String, artist: String?): Song {
+    suspend fun updateSongTitle(songId: String, title: String): Song {
         val state = stateFlow.value
         val existing = state.songs.firstOrNull { it.id == songId }
             ?: throw IllegalArgumentException("Song not found")
@@ -93,7 +92,6 @@ class SongRepository(private val context: Context) {
 
         val updated = existing.copy(
             title = title.trim(),
-            artist = artist?.trim().orEmpty().ifBlank { null },
             updatedAt = System.currentTimeMillis()
         )
 
@@ -112,7 +110,8 @@ class SongRepository(private val context: Context) {
             state.copy(
                 songs = state.songs.filterNot { it.id == songId },
                 chordEvents = state.chordEvents.filterNot { it.songId == songId },
-                practiceProfiles = state.practiceProfiles.filterNot { it.songId == songId }
+                practiceProfiles = state.practiceProfiles.filterNot { it.songId == songId },
+                barChordSteps = state.barChordSteps.filterNot { it.songId == songId }
             )
         }
 
@@ -122,77 +121,67 @@ class SongRepository(private val context: Context) {
         }.onFailure { Log.w(TAG, "Failed to delete audio file for ${song.id}", it) }
     }
 
-    suspend fun addChordEvent(songId: String, timestampMs: Long, chordName: String, note: String?): ChordEvent {
-        val error = LibraryValidation.validateChordEvent(timestampMs, chordName)
-        require(error == null) { error ?: "Invalid chord event" }
+    suspend fun addBarStep(songId: String, chordName: String, barCount: Int): BarChordStep {
+        require(barCount > 0) { "Bars must be at least 1" }
+        require(chordName.isNotBlank()) { "Chord is required" }
         ensureSongExists(songId)
 
-        val event = ChordEvent(
+        val nextOrder = stateFlow.value.barChordSteps
+            .filter { it.songId == songId }
+            .maxOfOrNull { it.displayOrder + 1 }
+            ?: 0
+
+        val step = BarChordStep(
             id = UUID.randomUUID().toString(),
             songId = songId,
-            timestampMs = timestampMs,
-            chordName = chordName.trim(),
-            note = note?.trim().orEmpty().ifBlank { null }
+            displayOrder = nextOrder,
+            barCount = barCount,
+            chordName = chordName.trim()
         )
 
-        mutateState { state ->
-            state.copy(chordEvents = state.chordEvents + event)
-        }
-
-        return event
+        mutateState { state -> state.copy(barChordSteps = state.barChordSteps + step) }
+        return step
     }
 
-    suspend fun updateChordEvent(event: ChordEvent): ChordEvent {
-        val error = LibraryValidation.validateChordEvent(event.timestampMs, event.chordName)
-        require(error == null) { error ?: "Invalid chord event" }
-        ensureSongExists(event.songId)
+    suspend fun updateBarStep(step: BarChordStep): BarChordStep {
+        require(step.barCount > 0) { "Bars must be at least 1" }
+        require(step.chordName.isNotBlank()) { "Chord is required" }
 
         mutateState { state ->
-            val exists = state.chordEvents.any { it.id == event.id }
-            require(exists) { "Chord event not found" }
-            state.copy(chordEvents = state.chordEvents.map { if (it.id == event.id) event else it })
+            val exists = state.barChordSteps.any { it.id == step.id }
+            require(exists) { "Step not found" }
+            state.copy(barChordSteps = state.barChordSteps.map { if (it.id == step.id) step else it })
         }
 
-        return event
+        return step
     }
 
-    suspend fun deleteChordEvent(eventId: String) {
+    suspend fun deleteBarStep(stepId: String) {
         mutateState { state ->
-            state.copy(chordEvents = state.chordEvents.filterNot { it.id == eventId })
+            val remaining = state.barChordSteps.filterNot { it.id == stepId }
+            val reindexed = remaining
+                .groupBy { it.songId }
+                .values
+                .flatMap { list ->
+                    list.sortedBy { it.displayOrder }.mapIndexed { index, step ->
+                        step.copy(displayOrder = index)
+                    }
+                }
+            state.copy(barChordSteps = reindexed)
         }
     }
 
-    suspend fun replaceSongChordEvents(songId: String, replacement: List<ChordEvent>) {
+    suspend fun upsertPracticeProfile(songId: String, tempoBpm: Int, timeSignatureTop: Int, timeSignatureBottom: Int) {
         ensureSongExists(songId)
-        replacement.forEach { event ->
-            require(event.songId == songId) { "Chord event songId mismatch" }
-            val error = LibraryValidation.validateChordEvent(event.timestampMs, event.chordName)
-            require(error == null) { error ?: "Invalid chord event" }
-        }
-
-        mutateState { state ->
-            state.copy(
-                chordEvents = state.chordEvents.filterNot { it.songId == songId } +
-                    replacement.sortedWith(compareBy<ChordEvent> { it.timestampMs }.thenBy { it.id })
-            )
-        }
-    }
-
-    suspend fun upsertPracticeProfile(songId: String, profile: PlaybackPracticeConfig) {
-        val song = stateFlow.value.songs.firstOrNull { it.id == songId }
-            ?: throw IllegalArgumentException("Song not found")
-        val validationError = LibraryValidation.validatePracticeConfig(profile, song.durationMs)
-        require(validationError == null) { validationError ?: "Invalid practice config" }
+        require(tempoBpm in 40..220) { "Tempo must be between 40 and 220 BPM" }
+        require(timeSignatureTop in 2..12) { "Invalid time signature" }
+        require(timeSignatureBottom in setOf(2, 4, 8)) { "Invalid time signature denominator" }
 
         val saved = PracticeProfile(
             songId = songId,
-            startSpeed = profile.startSpeed,
-            stepSize = profile.stepSize,
-            targetSpeed = profile.targetSpeed,
-            loopsPerSpeed = profile.loopsPerSpeed,
-            loopEnabled = profile.loopEnabled,
-            loopStartMs = profile.loopStartMs,
-            loopEndMs = profile.loopEndMs
+            tempoBpm = tempoBpm,
+            timeSignatureTop = timeSignatureTop,
+            timeSignatureBottom = timeSignatureBottom
         )
 
         mutateState { state ->
