@@ -25,6 +25,7 @@ class PlaybackService(
 
     private var mediaPlayer: MediaPlayer? = null
     private var progressJob: Job? = null
+    private var pendingSpeed: Float = 1.0f
     private var steppedConfig: PlaybackPracticeConfig? = null
     private var steppedState: PracticeModeState? = null
     private var pitchPreserveSupported = true
@@ -69,7 +70,8 @@ class PlaybackService(
             }
             mediaPlayer = player
             _durationMs.value = player.duration.toLong().coerceAtLeast(0L)
-            applySpeed(1.0f)
+            pendingSpeed = 1.0f
+            _speed.value = 1.0f
         }.onFailure { err ->
             Log.e(TAG, "Failed to load audio path=$path", err)
             _error.value = "Unable to load audio file. ${err.message ?: "Unknown error"}"
@@ -82,6 +84,7 @@ class PlaybackService(
 
         runCatching {
             player.start()
+            applySpeedToPlayer(pendingSpeed)
             _isPlaying.value = true
             startProgressLoop()
         }.onFailure { err ->
@@ -115,7 +118,12 @@ class PlaybackService(
         steppedConfig = null
         steppedState = null
         _nextSteppedSpeed.value = null
-        applySpeed(speed.coerceIn(MIN_SPEED, MAX_SPEED))
+        val safe = speed.coerceIn(MIN_SPEED, MAX_SPEED)
+        pendingSpeed = safe
+        _speed.value = safe
+        if (_isPlaying.value) {
+            applySpeedToPlayer(safe)
+        }
     }
 
     fun enableSteppedMode(config: PlaybackPracticeConfig) {
@@ -178,8 +186,15 @@ class PlaybackService(
     }
 
     private fun applySpeed(newSpeed: Float) {
-        val player = mediaPlayer ?: return
+        pendingSpeed = newSpeed
         _speed.value = newSpeed
+        if (_isPlaying.value) {
+            applySpeedToPlayer(newSpeed)
+        }
+    }
+
+    private fun applySpeedToPlayer(newSpeed: Float) {
+        val player = mediaPlayer ?: return
         runCatching {
             val params = player.playbackParams
                 .setPitch(1.0f)

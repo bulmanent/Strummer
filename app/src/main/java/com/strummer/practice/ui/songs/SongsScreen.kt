@@ -22,7 +22,9 @@ import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Slider
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.key
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
@@ -31,6 +33,7 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.strummer.practice.library.BarChordStep
+import kotlinx.coroutines.delay
 import kotlin.math.roundToInt
 
 @Composable
@@ -83,12 +86,6 @@ fun SongsScreen(
                     Button(onClick = { songsExpanded = true }, enabled = state.songs.isNotEmpty()) {
                         Text("Select")
                     }
-                    Button(
-                        onClick = viewModel::playPause,
-                        enabled = state.selectedSong != null && state.missingFileMessage == null
-                    ) {
-                        Text(if (state.isPlaying) "Pause" else "Play")
-                    }
                 }
                 DropdownMenu(expanded = songsExpanded, onDismissRequest = { songsExpanded = false }) {
                     state.songs.forEach { song ->
@@ -127,7 +124,18 @@ fun SongsScreen(
 
             Card(modifier = Modifier.fillMaxWidth()) {
                 Column(modifier = Modifier.padding(12.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                    Text("Playback", style = MaterialTheme.typography.titleMedium)
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.SpaceBetween
+                    ) {
+                        Text("Playback", style = MaterialTheme.typography.titleMedium)
+                        Button(
+                            onClick = viewModel::playPause,
+                            enabled = state.selectedSong != null && state.missingFileMessage == null
+                        ) {
+                            Text(if (state.isPlaying) "Pause" else "Play")
+                        }
+                    }
                     Text(
                         text = state.currentChord,
                         style = MaterialTheme.typography.displaySmall,
@@ -228,35 +236,66 @@ private fun BarStepList(steps: List<BarChordStep>, viewModel: SongsViewModel) {
         steps.sortedBy { it.displayOrder }.forEach { step ->
             val stepStartBar = runningBar
             runningBar += step.barCount
-            var chord by remember(step.id, step.chordName) { mutableStateOf(step.chordName) }
-            var bars by remember(step.id, step.barCount) { mutableStateOf(step.barCount.toString()) }
+            key(step.id) {
+                var isEditing by remember(step.id) { mutableStateOf(false) }
+                var chord by remember(step.id, step.chordName) { mutableStateOf(step.chordName) }
+                var bars by remember(step.id, step.barCount) { mutableStateOf(step.barCount.toString()) }
 
-            Card(modifier = Modifier.fillMaxWidth()) {
-                Column(modifier = Modifier.padding(8.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {
-                    Text("Bar $stepStartBar")
-                    Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                        OutlinedTextField(
-                            value = chord,
-                            onValueChange = { chord = it },
-                            label = { Text("Chord") },
-                            modifier = Modifier.weight(1f)
-                        )
-                        OutlinedTextField(
-                            value = bars,
-                            onValueChange = { bars = it },
-                            label = { Text("Bars") },
-                            modifier = Modifier.weight(1f)
-                        )
-                    }
-                    Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                        Button(onClick = {
-                            val count = bars.toIntOrNull() ?: return@Button
-                            viewModel.updateStep(step.id, chord, count)
-                        }) {
-                            Text("Update")
-                        }
-                        Button(onClick = { viewModel.deleteStep(step.id) }) {
-                            Text("Delete Step")
+                Card(modifier = Modifier.fillMaxWidth()) {
+                    Column(modifier = Modifier.padding(8.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {
+                        Text("Bar $stepStartBar")
+                        if (!isEditing) {
+                            Text("${step.chordName} for ${step.barCount} bars")
+                            Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                                Button(onClick = {
+                                    chord = step.chordName
+                                    bars = step.barCount.toString()
+                                    isEditing = true
+                                }) {
+                                    Text("Edit")
+                                }
+                                Button(onClick = { viewModel.deleteStep(step.id) }) {
+                                    Text("Delete Step")
+                                }
+                            }
+                        } else {
+                            LaunchedEffect(chord, bars, isEditing, step.chordName, step.barCount) {
+                                if (!isEditing) return@LaunchedEffect
+                                delay(350L)
+                                val count = bars.toIntOrNull() ?: return@LaunchedEffect
+                                val normalizedChord = chord.trim()
+                                if (normalizedChord.isBlank()) return@LaunchedEffect
+                                if (normalizedChord != step.chordName || count != step.barCount) {
+                                    viewModel.updateStep(step.id, normalizedChord, count)
+                                }
+                            }
+                            Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                                OutlinedTextField(
+                                    value = chord,
+                                    onValueChange = { chord = it },
+                                    label = { Text("Chord") },
+                                    modifier = Modifier.weight(1f)
+                                )
+                                OutlinedTextField(
+                                    value = bars,
+                                    onValueChange = { bars = it },
+                                    label = { Text("Bars") },
+                                    modifier = Modifier.weight(1f)
+                                )
+                            }
+                            Text("Auto-saves changes")
+                            Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                                Button(onClick = {
+                                    chord = step.chordName
+                                    bars = step.barCount.toString()
+                                    isEditing = false
+                                }) {
+                                    Text("Cancel")
+                                }
+                                Button(onClick = { viewModel.deleteStep(step.id) }) {
+                                    Text("Delete Step")
+                                }
+                            }
                         }
                     }
                 }

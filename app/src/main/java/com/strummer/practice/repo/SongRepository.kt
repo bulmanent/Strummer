@@ -125,6 +125,7 @@ class SongRepository(private val context: Context) {
         require(barCount > 0) { "Bars must be at least 1" }
         require(chordName.isNotBlank()) { "Chord is required" }
         ensureSongExists(songId)
+        val normalizedChord = normalizeChord(chordName)
 
         val nextOrder = stateFlow.value.barChordSteps
             .filter { it.songId == songId }
@@ -136,7 +137,7 @@ class SongRepository(private val context: Context) {
             songId = songId,
             displayOrder = nextOrder,
             barCount = barCount,
-            chordName = chordName.trim()
+            chordName = normalizedChord
         )
 
         mutateState { state -> state.copy(barChordSteps = state.barChordSteps + step) }
@@ -146,14 +147,15 @@ class SongRepository(private val context: Context) {
     suspend fun updateBarStep(step: BarChordStep): BarChordStep {
         require(step.barCount > 0) { "Bars must be at least 1" }
         require(step.chordName.isNotBlank()) { "Chord is required" }
+        val normalized = step.copy(chordName = normalizeChord(step.chordName))
 
         mutateState { state ->
-            val exists = state.barChordSteps.any { it.id == step.id }
+            val exists = state.barChordSteps.any { it.id == normalized.id }
             require(exists) { "Step not found" }
-            state.copy(barChordSteps = state.barChordSteps.map { if (it.id == step.id) step else it })
+            state.copy(barChordSteps = state.barChordSteps.map { if (it.id == normalized.id) normalized else it })
         }
 
-        return step
+        return normalized
     }
 
     suspend fun deleteBarStep(stepId: String) {
@@ -237,6 +239,17 @@ class SongRepository(private val context: Context) {
         }.onFailure {
             Log.w(TAG, "Unable to read audio duration for $path", it)
         }.getOrNull()
+    }
+
+    private fun normalizeChord(value: String): String {
+        val trimmed = value.trim()
+        if (trimmed.isEmpty()) return trimmed
+        val first = trimmed.first()
+        return if (first.isLetter()) {
+            first.uppercaseChar().toString() + trimmed.drop(1)
+        } else {
+            trimmed
+        }
     }
 
     companion object {
