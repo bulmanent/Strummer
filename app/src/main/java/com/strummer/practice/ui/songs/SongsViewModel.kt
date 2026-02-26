@@ -21,7 +21,6 @@ import kotlinx.coroutines.flow.collectLatest
 import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.launch
-import kotlin.math.max
 
 data class SongsUiState(
     val songs: List<Song> = emptyList(),
@@ -49,7 +48,7 @@ data class SongsUiState(
         get() = songs.firstOrNull { it.id == selectedSongId }
 
     val totalLoopBars: Int
-        get() = barSteps.sumOf { it.barCount }.coerceAtLeast(0)
+        get() = barSteps.maxOfOrNull { it.startBar + it.barCount - 1 } ?: 0
 }
 
 class SongsViewModel(
@@ -298,46 +297,37 @@ class SongsViewModel(
         }
 
         val index = stepNumber - 1
-        val starts = buildStepStarts(steps)
-        val nextStarts = starts.drop(1) + (state.totalLoopBars + 1)
+        val current = steps[index]
         val targetBar = state.loopBar
 
-        if (index == 0 && targetBar != 1) {
-            _uiState.value = state.copy(errorMessage = "Step 1 must start at bar 1")
-            return
-        }
         if (index > 0) {
-            val minStart = starts[index - 1] + 1
-            val maxStartExclusive = nextStarts[index] - 1
+            val prevStart = steps[index - 1].startBar
             val nextLabel = if (index + 1 < steps.size) "step ${stepNumber + 1}" else "the end of loop"
-            if (targetBar !in minStart..maxStartExclusive) {
+            if (targetBar <= prevStart) {
                 _uiState.value = state.copy(
                     errorMessage = "Invalid step order. Step $stepNumber must stay after step ${stepNumber - 1} and before $nextLabel."
                 )
                 return
             }
         }
+        if (index + 1 < steps.size) {
+            val nextStart = steps[index + 1].startBar
+            if (targetBar >= nextStart) {
+                _uiState.value = state.copy(
+                    errorMessage = "Invalid step order. Step $stepNumber must stay before step ${stepNumber + 1}."
+                )
+                return
+            }
+        }
 
-        if (starts[index] == targetBar) {
+        if (current.startBar == targetBar) {
             _uiState.value = state.copy(infoMessage = "Step $stepNumber already starts at bar $targetBar")
             return
         }
 
-        val prevIndex = index - 1
-        val nextStart = nextStarts[index]
-
         viewModelScope.launch {
             runCatching {
-                if (prevIndex >= 0) {
-                    val prev = steps[prevIndex]
-                    val prevStart = starts[prevIndex]
-                    val newPrevCount = targetBar - prevStart
-                    songRepository.updateBarStep(prev.copy(barCount = max(1, newPrevCount)))
-                }
-
-                val current = steps[index]
-                val newCurrentCount = nextStart - targetBar
-                songRepository.updateBarStep(current.copy(barCount = max(1, newCurrentCount)))
+                songRepository.updateBarStepStartBar(current.id, targetBar)
             }.onSuccess {
                 _uiState.value = _uiState.value.copy(
                     infoMessage = "Step $stepNumber set to bar $targetBar",
@@ -401,15 +391,6 @@ class SongsViewModel(
             loopBar = resolved.loopBar,
             barsUntilNextChange = resolved.barsUntilNextChange
         )
-    }
-
-    private fun buildStepStarts(steps: List<BarChordStep>): List<Int> {
-        var start = 1
-        return steps.map {
-            val current = start
-            start += it.barCount
-            current
-        }
     }
 
     private fun computeBarDurationMs(tempoBpm: Int, timeSignatureTop: Int): Long {

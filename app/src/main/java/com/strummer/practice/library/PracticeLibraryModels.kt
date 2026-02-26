@@ -35,6 +35,7 @@ data class BarChordStep(
     val id: String,
     val songId: String,
     val displayOrder: Int,
+    val startBar: Int = 1,
     val barCount: Int,
     val chordName: String
 )

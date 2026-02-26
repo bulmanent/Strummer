@@ -18,28 +18,22 @@ class BarLoopTimelineService {
         if (steps.isEmpty() || tempoBpm <= 0 || timeSignatureTop <= 0) return null
 
         val barMs = (60_000.0 / tempoBpm.toDouble() * timeSignatureTop.toDouble()).toLong().coerceAtLeast(1L)
-        val totalBars = steps.sumOf { it.barCount }.coerceAtLeast(1)
+        val ordered = steps.sortedBy { it.displayOrder }
+        val totalBars = ordered.maxOf { it.startBar + it.barCount - 1 }.coerceAtLeast(1)
 
         val elapsedBars = (elapsedMs / barMs).toInt()
         val absoluteBar = elapsedBars + 1
         val loopBar = (elapsedBars % totalBars) + 1
 
-        var running = 0
-        var current = steps.first()
-        var next = steps.first()
-        var untilNext = 1
+        val current = ordered.firstOrNull { loopBar in it.startBar..(it.startBar + it.barCount - 1) }
+            ?: ordered.lastOrNull { it.startBar <= loopBar }
+            ?: ordered.last()
 
-        for (index in steps.indices) {
-            val step = steps[index]
-            val start = running + 1
-            val end = running + step.barCount
-            if (loopBar in start..end) {
-                current = step
-                next = steps[(index + 1) % steps.size]
-                untilNext = end - loopBar + 1
-                break
-            }
-            running = end
+        val next = ordered.firstOrNull { it.startBar > current.startBar } ?: ordered.first()
+        val untilNext = if (next.startBar > loopBar) {
+            next.startBar - loopBar
+        } else {
+            totalBars - loopBar + next.startBar
         }
 
         return BarLoopPosition(
@@ -47,7 +41,7 @@ class BarLoopTimelineService {
             loopBar = loopBar,
             currentChord = current.chordName,
             nextChord = next.chordName,
-            barsUntilNextChange = untilNext
+            barsUntilNextChange = untilNext.coerceAtLeast(1)
         )
     }
 }

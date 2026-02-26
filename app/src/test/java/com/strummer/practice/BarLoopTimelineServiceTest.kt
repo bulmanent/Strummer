@@ -11,9 +11,9 @@ class BarLoopTimelineServiceTest {
     @Test
     fun resolvesChordAndLoopBarAcrossSequence() {
         val steps = listOf(
-            BarChordStep("1", "song", 0, 4, "G"),
-            BarChordStep("2", "song", 1, 4, "D"),
-            BarChordStep("3", "song", 2, 8, "Am")
+            BarChordStep("1", "song", 0, 1, 4, "G"),
+            BarChordStep("2", "song", 1, 5, 4, "D"),
+            BarChordStep("3", "song", 2, 9, 8, "Am")
         )
 
         val barMs = 2_400L // 4/4 at 100 bpm

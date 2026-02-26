@@ -36,9 +36,11 @@ class SongRepository(private val context: Context) {
 
     fun barStepsFlow(songId: String): Flow<List<BarChordStep>> =
         stateFlow.map { state ->
-            state.barChordSteps
+            normalizeStepStarts(
+                state.barChordSteps
                 .filter { it.songId == songId }
                 .sortedBy { it.displayOrder }
+            )
         }
 
     fun practiceProfileFlow(songId: String): Flow<PracticeProfile> =
@@ -127,15 +129,20 @@ class SongRepository(private val context: Context) {
         ensureSongExists(songId)
         val normalizedChord = normalizeChord(chordName)
 
-        val nextOrder = stateFlow.value.barChordSteps
+        val existing = normalizeStepStarts(
+            stateFlow.value.barChordSteps
             .filter { it.songId == songId }
-            .maxOfOrNull { it.displayOrder + 1 }
+            .sortedBy { it.displayOrder }
+        )
+        val nextOrder = existing.maxOfOrNull { it.displayOrder + 1 }
             ?: 0
+        val nextStart = existing.maxOfOrNull { it.startBar + it.barCount } ?: 1
 
         val step = BarChordStep(
             id = UUID.randomUUID().toString(),
             songId = songId,
             displayOrder = nextOrder,
+            startBar = nextStart,
             barCount = barCount,
             chordName = normalizedChord
         )
@@ -145,6 +152,7 @@ class SongRepository(private val context: Context) {
     }
 
     suspend fun updateBarStep(step: BarChordStep): BarChordStep {
+        require(step.startBar >= 1) { "Start bar must be at least 1" }
         require(step.barCount > 0) { "Bars must be at least 1" }
         require(step.chordName.isNotBlank()) { "Chord is required" }
         val normalized = step.copy(chordName = normalizeChord(step.chordName))
@@ -156,6 +164,20 @@ class SongRepository(private val context: Context) {
         }
 
         return normalized
+    }
+
+    suspend fun updateBarStepStartBar(stepId: String, startBar: Int) {
+        require(startBar >= 1) { "Start bar must be at least 1" }
+        mutateState { state ->
+            if (state.barChordSteps.none { it.id == stepId }) {
+                throw IllegalArgumentException("Step not found")
+            }
+            state.copy(
+                barChordSteps = state.barChordSteps.map {
+                    if (it.id == stepId) it.copy(startBar = startBar) else it
+                }
+            )
+        }
     }
 
     suspend fun deleteBarStep(stepId: String) {
@@ -249,6 +271,21 @@ class SongRepository(private val context: Context) {
             first.uppercaseChar().toString() + trimmed.drop(1)
         } else {
             trimmed
+        }
+    }
+
+    private fun normalizeStepStarts(steps: List<BarChordStep>): List<BarChordStep> {
+        if (steps.isEmpty()) return steps
+        val ordered = steps.sortedBy { it.displayOrder }
+        val alreadyValid = ordered.zipWithNext().all { (a, b) -> b.startBar > a.startBar } &&
+            ordered.first().startBar >= 1
+        if (alreadyValid) return ordered
+
+        var start = 1
+        return ordered.map { step ->
+            val normalized = step.copy(startBar = start)
+            start += step.barCount
+            normalized
         }
     }
 

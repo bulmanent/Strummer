@@ -249,11 +249,9 @@ fun SongsScreen(
 
 @Composable
 private fun BarStepList(steps: List<BarChordStep>, viewModel: SongsViewModel) {
-    var runningBar = 1
     Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
         steps.sortedBy { it.displayOrder }.forEach { step ->
-            val stepStartBar = runningBar
-            runningBar += step.barCount
+            val stepNumber = step.displayOrder + 1
             key(step.id) {
                 var isEditing by remember(step.id) { mutableStateOf(false) }
                 var chord by remember(step.id, step.chordName) { mutableStateOf(step.chordName) }
@@ -261,9 +259,9 @@ private fun BarStepList(steps: List<BarChordStep>, viewModel: SongsViewModel) {
 
                 Card(modifier = Modifier.fillMaxWidth()) {
                     Column(modifier = Modifier.padding(8.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {
-                        Text("Bar $stepStartBar")
+                        Text("Step $stepNumber")
                         if (!isEditing) {
-                            Text("${step.chordName} for ${step.barCount} bars")
+                            Text("Starts at bar ${step.startBar} • ${step.chordName} for ${step.barCount} bars")
                             Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                                 Button(onClick = {
                                     chord = step.chordName
@@ -277,6 +275,7 @@ private fun BarStepList(steps: List<BarChordStep>, viewModel: SongsViewModel) {
                                 }
                             }
                         } else {
+                            Text("Start bar: ${step.startBar} (use Set Step in Playback to change)")
                             LaunchedEffect(chord, bars, isEditing, step.chordName, step.barCount) {
                                 if (!isEditing) return@LaunchedEffect
                                 delay(350L)
