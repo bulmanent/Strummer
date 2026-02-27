@@ -171,10 +171,6 @@ fun SongsScreen(
                                 )
                             }
                         }
-                        Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                            Button(onClick = { viewModel.seekByBars(-1) }) { Text("-1 Bar") }
-                            Button(onClick = { viewModel.seekByBars(1) }) { Text("+1 Bar") }
-                        }
                     }
                     Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                         OutlinedTextField(
