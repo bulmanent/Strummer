@@ -1,7 +1,7 @@
 <?xml version="1.0" encoding="UTF-8"?>
-<testsuite name="com.strummer.practice.BarLoopTimelineServiceTest" tests="1" skipped="0" failures="0" errors="0" timestamp="2026-02-26T17:34:27" hostname="neil-latitude7490" time="0.032">
+<testsuite name="com.strummer.practice.BarLoopTimelineServiceTest" tests="1" skipped="0" failures="0" errors="0" timestamp="2026-02-27T10:27:37" hostname="neil-latitude7490" time="0.035">
   <properties/>
-  <testcase name="resolvesChordAndLoopBarAcrossSequence" classname="com.strummer.practice.BarLoopTimelineServiceTest" time="0.032"/>
+  <testcase name="resolvesChordAndLoopBarAcrossSequence" classname="com.strummer.practice.BarLoopTimelineServiceTest" time="0.035"/>
   <system-out><![CDATA[]]></system-out>
   <system-err><![CDATA[]]></system-err>
 </testsuite>

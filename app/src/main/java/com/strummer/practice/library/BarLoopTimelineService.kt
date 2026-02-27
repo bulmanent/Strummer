@@ -3,6 +3,7 @@ package com.strummer.practice.library
 data class BarLoopPosition(
     val absoluteBar: Int,
     val loopBar: Int,
+    val currentStepNumber: Int?,
     val currentChord: String,
     val nextChord: String,
     val barsUntilNextChange: Int
@@ -25,21 +26,19 @@ class BarLoopTimelineService {
         val absoluteBar = elapsedBars + 1
         val loopBar = (elapsedBars % totalBars) + 1
 
-        val current = ordered.firstOrNull { loopBar in it.startBar..(it.startBar + it.barCount - 1) }
-            ?: ordered.lastOrNull { it.startBar <= loopBar }
-            ?: ordered.last()
-
-        val next = ordered.firstOrNull { it.startBar > current.startBar } ?: ordered.first()
-        val untilNext = if (next.startBar > loopBar) {
-            next.startBar - loopBar
-        } else {
-            totalBars - loopBar + next.startBar
+        val currentIndex = ordered.indexOfFirst { loopBar in it.startBar..(it.startBar + it.barCount - 1) }
+        val current = ordered.getOrNull(currentIndex)
+        val next = when {
+            currentIndex >= 0 -> ordered.getOrNull(currentIndex + 1) ?: ordered.first()
+            else -> ordered.firstOrNull { it.startBar > loopBar } ?: ordered.first()
         }
+        val untilNext = if (next.startBar > loopBar) next.startBar - loopBar else totalBars - loopBar + next.startBar
 
         return BarLoopPosition(
             absoluteBar = absoluteBar,
             loopBar = loopBar,
-            currentChord = current.chordName,
+            currentStepNumber = if (currentIndex >= 0) currentIndex + 1 else null,
+            currentChord = current?.chordName ?: "-",
             nextChord = next.chordName,
             barsUntilNextChange = untilNext.coerceAtLeast(1)
         )

@@ -142,6 +142,7 @@ fun SongsScreen(
                         style = MaterialTheme.typography.displaySmall,
                         fontWeight = FontWeight.Bold
                     )
+                    Text("Current Step: ${state.currentStepNumber ?: "-"}")
                     Text("Next: ${state.nextChord} (${state.barsUntilNextChange} bars)")
                     Text("Bar ${state.absoluteBar} (Loop ${state.loopBar}/${state.totalLoopBars.coerceAtLeast(1)})")
 
@@ -180,7 +181,7 @@ fun SongsScreen(
                             modifier = Modifier.weight(1f)
                         )
                         Button(onClick = {
-                            val stepNumber = setStepInput.toIntOrNull() ?: return@Button
+                            val stepNumber = setStepInput.toIntOrNull()
                             viewModel.setStepStartToCurrentLoopBar(stepNumber)
                         }) {
                             Text("Set Step")
@@ -256,6 +257,7 @@ private fun BarStepList(steps: List<BarChordStep>, viewModel: SongsViewModel) {
                 var isEditing by remember(step.id) { mutableStateOf(false) }
                 var chord by remember(step.id, step.chordName) { mutableStateOf(step.chordName) }
                 var bars by remember(step.id, step.barCount) { mutableStateOf(step.barCount.toString()) }
+                var startBar by remember(step.id, step.startBar) { mutableStateOf(step.startBar.toString()) }
 
                 Card(modifier = Modifier.fillMaxWidth()) {
                     Column(modifier = Modifier.padding(8.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {
@@ -264,6 +266,7 @@ private fun BarStepList(steps: List<BarChordStep>, viewModel: SongsViewModel) {
                             Text("Starts at bar ${step.startBar} • ${step.chordName} for ${step.barCount} bars")
                             Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                                 Button(onClick = {
+                                    startBar = step.startBar.toString()
                                     chord = step.chordName
                                     bars = step.barCount.toString()
                                     isEditing = true
@@ -275,18 +278,24 @@ private fun BarStepList(steps: List<BarChordStep>, viewModel: SongsViewModel) {
                                 }
                             }
                         } else {
-                            Text("Start bar: ${step.startBar} (use Set Step in Playback to change)")
-                            LaunchedEffect(chord, bars, isEditing, step.chordName, step.barCount) {
+                            LaunchedEffect(startBar, chord, bars, isEditing, step.startBar, step.chordName, step.barCount) {
                                 if (!isEditing) return@LaunchedEffect
                                 delay(350L)
+                                val parsedStartBar = startBar.toIntOrNull() ?: return@LaunchedEffect
                                 val count = bars.toIntOrNull() ?: return@LaunchedEffect
                                 val normalizedChord = chord.trim()
                                 if (normalizedChord.isBlank()) return@LaunchedEffect
-                                if (normalizedChord != step.chordName || count != step.barCount) {
-                                    viewModel.updateStep(step.id, normalizedChord, count)
+                                if (parsedStartBar != step.startBar || normalizedChord != step.chordName || count != step.barCount) {
+                                    viewModel.updateStep(step.id, parsedStartBar, normalizedChord, count)
                                 }
                             }
                             Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                                OutlinedTextField(
+                                    value = startBar,
+                                    onValueChange = { startBar = it },
+                                    label = { Text("Start Bar") },
+                                    modifier = Modifier.weight(1f)
+                                )
                                 OutlinedTextField(
                                     value = chord,
                                     onValueChange = { chord = it },
@@ -303,6 +312,7 @@ private fun BarStepList(steps: List<BarChordStep>, viewModel: SongsViewModel) {
                             Text("Auto-saves changes")
                             Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                                 Button(onClick = {
+                                    startBar = step.startBar.toString()
                                     chord = step.chordName
                                     bars = step.barCount.toString()
                                     isEditing = false

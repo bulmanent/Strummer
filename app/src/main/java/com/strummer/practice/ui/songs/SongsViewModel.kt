@@ -34,6 +34,7 @@ data class SongsUiState(
     val durationMs: Long = 0L,
     val speed: Float = 1.0f,
     val isPlaying: Boolean = false,
+    val currentStepNumber: Int? = null,
     val currentChord: String = "-",
     val nextChord: String = "-",
     val absoluteBar: Int = 1,
@@ -250,9 +251,13 @@ class SongsViewModel(
         }
     }
 
-    fun updateStep(stepId: String, chordName: String, barCount: Int) {
+    fun updateStep(stepId: String, startBar: Int, chordName: String, barCount: Int) {
         val existing = _uiState.value.barSteps.firstOrNull { it.id == stepId } ?: return
-        val updated = existing.copy(chordName = chordName.trim(), barCount = barCount)
+        val updated = existing.copy(
+            startBar = startBar,
+            chordName = chordName.trim(),
+            barCount = barCount
+        )
 
         viewModelScope.launch {
             runCatching { songRepository.updateBarStep(updated) }
@@ -283,7 +288,7 @@ class SongsViewModel(
         }
     }
 
-    fun setStepStartToCurrentLoopBar(stepNumber: Int) {
+    fun setStepStartToCurrentLoopBar(stepNumber: Int?) {
         val state = _uiState.value
         state.selectedSongId ?: return
         val steps = state.barSteps.sortedBy { it.displayOrder }
@@ -291,46 +296,53 @@ class SongsViewModel(
             _uiState.value = state.copy(errorMessage = "No steps available")
             return
         }
-        if (stepNumber !in 1..steps.size) {
+        val resolvedStepNumber = stepNumber ?: state.currentStepNumber
+        if (resolvedStepNumber == null) {
+            _uiState.value = state.copy(errorMessage = "Enter a step number or play within a step first")
+            return
+        }
+        if (resolvedStepNumber !in 1..steps.size) {
             _uiState.value = state.copy(errorMessage = "Step number must be between 1 and ${steps.size}")
             return
         }
 
-        val index = stepNumber - 1
+        val index = resolvedStepNumber - 1
         val current = steps[index]
         val targetBar = state.loopBar
 
         if (index > 0) {
-            val prevStart = steps[index - 1].startBar
-            val nextLabel = if (index + 1 < steps.size) "step ${stepNumber + 1}" else "the end of loop"
-            if (targetBar <= prevStart) {
+            val minStart = steps[index - 1].startBar + steps[index - 1].barCount
+            if (targetBar < minStart) {
                 _uiState.value = state.copy(
-                    errorMessage = "Invalid step order. Step $stepNumber must stay after step ${stepNumber - 1} and before $nextLabel."
-                )
-                return
-            }
-        }
-        if (index + 1 < steps.size) {
-            val nextStart = steps[index + 1].startBar
-            if (targetBar >= nextStart) {
-                _uiState.value = state.copy(
-                    errorMessage = "Invalid step order. Step $stepNumber must stay before step ${stepNumber + 1}."
+                    errorMessage = "Invalid step order. Step $resolvedStepNumber must start at or after bar $minStart."
                 )
                 return
             }
         }
 
         if (current.startBar == targetBar) {
-            _uiState.value = state.copy(infoMessage = "Step $stepNumber already starts at bar $targetBar")
+            _uiState.value = state.copy(infoMessage = "Step $resolvedStepNumber already starts at bar $targetBar")
             return
+        }
+
+        val updated = steps.toMutableList()
+        updated[index] = updated[index].copy(startBar = targetBar)
+        for (i in (index + 1) until updated.size) {
+            val prev = updated[i - 1]
+            val minStart = prev.startBar + prev.barCount
+            if (updated[i].startBar < minStart) {
+                updated[i] = updated[i].copy(startBar = minStart)
+            }
         }
 
         viewModelScope.launch {
             runCatching {
-                songRepository.updateBarStepStartBar(current.id, targetBar)
+                updated.forEach { step ->
+                    songRepository.updateBarStepStartBar(step.id, step.startBar)
+                }
             }.onSuccess {
                 _uiState.value = _uiState.value.copy(
-                    infoMessage = "Step $stepNumber set to bar $targetBar",
+                    infoMessage = "Step $resolvedStepNumber set to bar $targetBar",
                     errorMessage = null
                 )
             }.onFailure {
@@ -385,6 +397,7 @@ class SongsViewModel(
         }
 
         _uiState.value = state.copy(
+            currentStepNumber = resolved.currentStepNumber,
             currentChord = resolved.currentChord,
             nextChord = resolved.nextChord,
             absoluteBar = resolved.absoluteBar,

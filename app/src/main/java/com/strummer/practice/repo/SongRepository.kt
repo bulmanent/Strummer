@@ -160,7 +160,8 @@ class SongRepository(private val context: Context) {
         mutateState { state ->
             val exists = state.barChordSteps.any { it.id == normalized.id }
             require(exists) { "Step not found" }
-            state.copy(barChordSteps = state.barChordSteps.map { if (it.id == normalized.id) normalized else it })
+            val updated = state.barChordSteps.map { if (it.id == normalized.id) normalized else it }
+            state.copy(barChordSteps = enforceNonOverlappingStarts(updated, normalized.songId))
         }
 
         return normalized
@@ -172,11 +173,11 @@ class SongRepository(private val context: Context) {
             if (state.barChordSteps.none { it.id == stepId }) {
                 throw IllegalArgumentException("Step not found")
             }
-            state.copy(
-                barChordSteps = state.barChordSteps.map {
+            val updated = state.barChordSteps.map {
                     if (it.id == stepId) it.copy(startBar = startBar) else it
                 }
-            )
+            val songId = updated.first { it.id == stepId }.songId
+            state.copy(barChordSteps = enforceNonOverlappingStarts(updated, songId))
         }
     }
 
@@ -287,6 +288,21 @@ class SongRepository(private val context: Context) {
             start += step.barCount
             normalized
         }
+    }
+
+    private fun enforceNonOverlappingStarts(allSteps: List<BarChordStep>, songId: String): List<BarChordStep> {
+        val target = allSteps.filter { it.songId == songId }.sortedBy { it.displayOrder }
+        if (target.isEmpty()) return allSteps
+
+        var previousEndExclusive = 1
+        val normalized = target.mapIndexed { index, step ->
+            val safeStart = if (index == 0) step.startBar.coerceAtLeast(1) else step.startBar.coerceAtLeast(previousEndExclusive)
+            val updated = step.copy(startBar = safeStart)
+            previousEndExclusive = safeStart + step.barCount
+            updated
+        }
+        val byId = normalized.associateBy { it.id }
+        return allSteps.map { byId[it.id] ?: it }
     }
 
     companion object {

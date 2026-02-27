@@ -24,8 +24,11 @@ class BarLoopTimelineServiceTest {
         val atBar17Loop = service.resolve(barMs * 16, 100, 4, steps)
 
         assertEquals("G", atBar1?.currentChord)
+        assertEquals(1, atBar1?.currentStepNumber)
         assertEquals("D", atBar5?.currentChord)
+        assertEquals(2, atBar5?.currentStepNumber)
         assertEquals("Am", atBar10?.currentChord)
+        assertEquals(3, atBar10?.currentStepNumber)
         assertEquals(1, atBar17Loop?.loopBar)
         assertEquals("G", atBar17Loop?.currentChord)
     }
