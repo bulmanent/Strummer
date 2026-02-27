@@ -103,6 +103,20 @@ class PlaybackService(
         }
     }
 
+    fun stop() {
+        val player = mediaPlayer ?: return
+        runCatching {
+            if (player.isPlaying) {
+                player.pause()
+            }
+            player.seekTo(0)
+            _positionMs.value = 0L
+            _isPlaying.value = false
+        }.onFailure { err ->
+            Log.e(TAG, "Playback stop failed", err)
+        }
+    }
+
     fun seekTo(positionMs: Long) {
         val player = mediaPlayer ?: return
         val safe = positionMs.coerceIn(0L, _durationMs.value)

@@ -212,6 +212,11 @@ class SongsViewModel(
         }
     }
 
+    fun stopPlayback() {
+        playbackService.stop()
+        recalculateBarCue(0L)
+    }
+
     fun seekTo(positionMs: Long) {
         playbackService.seekTo(positionMs)
     }
@@ -291,53 +296,61 @@ class SongsViewModel(
 
     fun setStepStartToCurrentLoopBar(stepNumber: Int?): Boolean {
         val state = _uiState.value
-        state.selectedSongId ?: return false
-        val steps = state.barSteps.sortedBy { it.displayOrder }
-        if (steps.isEmpty()) {
-            _uiState.value = state.copy(errorMessage = "No steps available")
-            return false
-        }
+        val songId = state.selectedSongId ?: return false
+        val originalSteps = state.barSteps.sortedBy { it.displayOrder }
         val resolvedStepNumber = stepNumber ?: state.currentStepNumber
         if (resolvedStepNumber == null) {
             _uiState.value = state.copy(errorMessage = "Enter a step number or play within a step first")
             return false
         }
-        if (resolvedStepNumber !in 1..steps.size) {
-            _uiState.value = state.copy(errorMessage = "Step number must be between 1 and ${steps.size}")
+        if (resolvedStepNumber < 1) {
+            _uiState.value = state.copy(errorMessage = "Step number must be at least 1")
             return false
         }
 
-        val index = resolvedStepNumber - 1
-        val current = steps[index]
+        val placeholderChord = when {
+            state.currentChord.isNotBlank() && state.currentChord != "-" -> state.currentChord
+            originalSteps.isNotEmpty() -> originalSteps.last().chordName
+            else -> "N.C."
+        }
+
         val targetBar = snapToHalfBar(state.loopBar)
-
-        if (index > 0) {
-            val minStart = steps[index - 1].startBar + steps[index - 1].barCount
-            if (targetBar < minStart) {
-                _uiState.value = state.copy(
-                    errorMessage = "Invalid step order. Step $resolvedStepNumber must start at or after bar $minStart."
-                )
-                return false
-            }
-        }
-
-        if (current.startBar == targetBar) {
-            _uiState.value = state.copy(infoMessage = "Step $resolvedStepNumber already starts at bar $targetBar")
-            return true
-        }
-
-        val updated = steps.toMutableList()
-        updated[index] = updated[index].copy(startBar = targetBar)
-        for (i in (index + 1) until updated.size) {
-            val prev = updated[i - 1]
-            val minStart = prev.startBar + prev.barCount
-            if (updated[i].startBar < minStart) {
-                updated[i] = updated[i].copy(startBar = minStart)
-            }
-        }
 
         viewModelScope.launch {
             runCatching {
+                var steps = _uiState.value.barSteps.sortedBy { it.displayOrder }
+                while (steps.size < resolvedStepNumber) {
+                    songRepository.addBarStep(
+                        songId = songId,
+                        chordName = placeholderChord,
+                        barCount = 1.0
+                    )
+                    steps = songRepository.barStepsFlow(songId).first().sortedBy { it.displayOrder }
+                }
+
+                val index = resolvedStepNumber - 1
+                val current = steps[index]
+                if (index > 0) {
+                    val minStart = steps[index - 1].startBar + steps[index - 1].barCount
+                    if (targetBar < minStart) {
+                        throw IllegalArgumentException(
+                            "Invalid step order. Step $resolvedStepNumber must start at or after bar $minStart."
+                        )
+                    }
+                }
+                if (current.startBar == targetBar) {
+                    return@runCatching
+                }
+
+                val updated = steps.toMutableList()
+                updated[index] = updated[index].copy(startBar = targetBar)
+                for (i in (index + 1) until updated.size) {
+                    val prev = updated[i - 1]
+                    val minStart = prev.startBar + prev.barCount
+                    if (updated[i].startBar < minStart) {
+                        updated[i] = updated[i].copy(startBar = minStart)
+                    }
+                }
                 updated.forEach { step ->
                     songRepository.updateBarStepStartBar(step.id, step.startBar)
                 }

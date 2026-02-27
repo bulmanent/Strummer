@@ -129,11 +129,21 @@ fun SongsScreen(
                         horizontalArrangement = Arrangement.SpaceBetween
                     ) {
                         Text("Playback", style = MaterialTheme.typography.titleMedium)
-                        Button(
-                            onClick = viewModel::playPause,
-                            enabled = state.selectedSong != null && state.missingFileMessage == null
-                        ) {
-                            Text(if (state.isPlaying) "Pause" else "Play")
+                        Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                            Button(
+                                onClick = viewModel::playPause,
+                                enabled = state.selectedSong != null && state.missingFileMessage == null
+                            ) {
+                                Text(if (state.isPlaying) "Pause" else "Play")
+                            }
+                            if (state.isPlaying) {
+                                Button(
+                                    onClick = viewModel::stopPlayback,
+                                    enabled = state.selectedSong != null && state.missingFileMessage == null
+                                ) {
+                                    Text("Stop")
+                                }
+                            }
                         }
                     }
                     Text(
