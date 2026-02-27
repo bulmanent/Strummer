@@ -161,18 +161,20 @@ fun SongsScreen(
                         onValueChange = viewModel::setSpeed,
                         valueRange = 0.5f..1.25f
                     )
-                    Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                        listOf(0.6f, 0.7f, 0.8f, 0.9f, 1.0f).forEach { speed ->
-                            FilterChip(
-                                selected = kotlin.math.abs(state.speed - speed) < 0.005f,
-                                onClick = { viewModel.setSpeed(speed) },
-                                label = { Text("${"%.1f".format(speed)}x") }
-                            )
+                    Column(verticalArrangement = Arrangement.spacedBy(2.dp)) {
+                        Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                            listOf(0.6f, 0.7f, 0.8f, 0.9f, 1.0f).forEach { speed ->
+                                FilterChip(
+                                    selected = kotlin.math.abs(state.speed - speed) < 0.005f,
+                                    onClick = { viewModel.setSpeed(speed) },
+                                    label = { Text("${"%.1f".format(speed)}x") }
+                                )
+                            }
                         }
-                    }
-                    Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                        Button(onClick = { viewModel.seekByBars(-1) }) { Text("-1 Bar") }
-                        Button(onClick = { viewModel.seekByBars(1) }) { Text("+1 Bar") }
+                        Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                            Button(onClick = { viewModel.seekByBars(-1) }) { Text("-1 Bar") }
+                            Button(onClick = { viewModel.seekByBars(1) }) { Text("+1 Bar") }
+                        }
                     }
                     Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                         OutlinedTextField(
