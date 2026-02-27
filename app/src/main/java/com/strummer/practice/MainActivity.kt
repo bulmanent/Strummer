@@ -23,7 +23,9 @@ import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.platform.LocalView
 import androidx.compose.ui.unit.dp
+import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.lifecycle.viewmodel.compose.viewModel
 import com.strummer.practice.repo.ChordLibraryRepository
 import com.strummer.practice.ui.custom.CustomPracticeScreen
@@ -74,6 +76,14 @@ private fun StrummerApp(container: AppContainer) {
             container.audioEngine
         )
     )
+    val songsState by songsViewModel.uiState.collectAsStateWithLifecycle()
+    val localView = LocalView.current
+    DisposableEffect(localView, songsState.isPlaying) {
+        localView.keepScreenOn = songsState.isPlaying
+        onDispose {
+            localView.keepScreenOn = false
+        }
+    }
 
     Scaffold(
         modifier = Modifier.fillMaxSize(),

@@ -26,6 +26,7 @@ class PlaybackService(
     private var mediaPlayer: MediaPlayer? = null
     private var progressJob: Job? = null
     private var pendingSpeed: Float = 1.0f
+    private var loadedPath: String? = null
     private var steppedConfig: PlaybackPracticeConfig? = null
     private var steppedState: PracticeModeState? = null
     private var pitchPreserveSupported = true
@@ -53,6 +54,7 @@ class PlaybackService(
 
     fun load(path: String) {
         stopAndReleasePlayer()
+        loadedPath = path
         _error.value = null
         _positionMs.value = 0L
         _durationMs.value = 0L
@@ -79,18 +81,45 @@ class PlaybackService(
     }
 
     fun play() {
-        val player = mediaPlayer ?: return
+        var player = mediaPlayer
+        if (player == null) {
+            val path = loadedPath ?: return
+            load(path)
+            player = mediaPlayer
+        }
+        val safePlayer = player ?: return
         if (_isPlaying.value) return
 
         runCatching {
-            player.start()
-            applySpeedToPlayer(pendingSpeed)
+            // If playback previously ended, restart from the beginning.
+            if (_durationMs.value > 0L && safePlayer.currentPosition.toLong() >= _durationMs.value - 50L) {
+                safePlayer.seekTo(0)
+                _positionMs.value = 0L
+            }
+            safePlayer.start()
             _isPlaying.value = true
             startProgressLoop()
+            _error.value = null
         }.onFailure { err ->
-            Log.e(TAG, "Playback start failed", err)
-            _error.value = "Failed to start playback"
+            Log.e(TAG, "Playback start failed, attempting recover", err)
+            val path = loadedPath
+            if (path != null) {
+                runCatching {
+                    load(path)
+                    val recovered = mediaPlayer ?: return@runCatching
+                    recovered.start()
+                    _isPlaying.value = true
+                    startProgressLoop()
+                    _error.value = null
+                }.onFailure { secondErr ->
+                    Log.e(TAG, "Playback recover failed", secondErr)
+                    _error.value = "Failed to start playback"
+                }
+            } else {
+                _error.value = "Failed to start playback"
+            }
         }
+        applySpeedToPlayer(pendingSpeed)
     }
 
     fun pause() {
