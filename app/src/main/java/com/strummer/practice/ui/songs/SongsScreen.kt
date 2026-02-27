@@ -10,6 +10,7 @@ import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.Button
@@ -112,7 +113,7 @@ fun SongsScreen(
 
         if (state.selectedSong != null) {
             Card(modifier = Modifier.fillMaxWidth()) {
-                Column(modifier = Modifier.padding(12.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                Column(modifier = Modifier.padding(12.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {
                     Text("Song Metadata", style = MaterialTheme.typography.titleMedium)
                     Text("Title: ${state.selectedSong?.title.orEmpty()}")
                     Text("Source path: ${state.selectedSong?.audioFilePath.orEmpty()}")
@@ -172,13 +173,12 @@ fun SongsScreen(
                     Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                         Button(onClick = { viewModel.seekByBars(-1) }) { Text("-1 Bar") }
                         Button(onClick = { viewModel.seekByBars(1) }) { Text("+1 Bar") }
-                    }
-                    Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                         OutlinedTextField(
                             value = setStepInput,
                             onValueChange = { setStepInput = it },
                             label = { Text("Step #") },
-                            modifier = Modifier.weight(1f)
+                            singleLine = true,
+                            modifier = Modifier.width(88.dp)
                         )
                         Button(onClick = {
                             val stepNumber = setStepInput.toIntOrNull()
