@@ -27,15 +27,14 @@ class BarLoopTimelineService {
         val absoluteBar = elapsedBars + 1.0
         val loopBar = ((elapsedBars % totalBars) + totalBars) % totalBars + 1.0
 
-        val currentIndex = ordered.indexOfFirst { step ->
-            loopBar + EPSILON >= step.startBar && loopBar < (step.startBar + step.barCount - EPSILON)
-        }
-        val current = ordered.getOrNull(currentIndex)
-        val next = when {
-            currentIndex >= 0 -> ordered.getOrNull(currentIndex + 1) ?: ordered.first()
-            else -> ordered.firstOrNull { it.startBar > loopBar + EPSILON } ?: ordered.first()
-        }
-        val untilNext = if (next.startBar > loopBar + EPSILON) {
+        val currentIndex = ordered.indexOfLast { it.startBar <= loopBar + EPSILON }
+            .let { if (it >= 0) it else ordered.lastIndex }
+        val current = ordered[currentIndex]
+        val nextIndex = if (ordered.size == 1) currentIndex else (currentIndex + 1) % ordered.size
+        val next = ordered[nextIndex]
+        val untilNext = if (ordered.size == 1) {
+            0.0
+        } else if (next.startBar > loopBar + EPSILON) {
             next.startBar - loopBar
         } else {
             totalBars - loopBar + next.startBar
@@ -44,8 +43,8 @@ class BarLoopTimelineService {
         return BarLoopPosition(
             absoluteBar = absoluteBar,
             loopBar = loopBar,
-            currentStepNumber = if (currentIndex >= 0) currentIndex + 1 else null,
-            currentChord = current?.chordName ?: "-",
+            currentStepNumber = currentIndex + 1,
+            currentChord = current.chordName,
             nextChord = next.chordName,
             barsUntilNextChange = untilNext.coerceAtLeast(0.0)
         )
