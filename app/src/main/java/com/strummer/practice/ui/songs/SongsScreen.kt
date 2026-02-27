@@ -22,7 +22,6 @@ import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Slider
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
-import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.key
 import androidx.compose.runtime.mutableStateOf
@@ -33,7 +32,6 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.strummer.practice.library.BarChordStep
-import kotlinx.coroutines.delay
 import kotlin.math.roundToInt
 
 @Composable
@@ -278,17 +276,6 @@ private fun BarStepList(steps: List<BarChordStep>, viewModel: SongsViewModel) {
                                 }
                             }
                         } else {
-                            LaunchedEffect(startBar, chord, bars, isEditing, step.startBar, step.chordName, step.barCount) {
-                                if (!isEditing) return@LaunchedEffect
-                                delay(350L)
-                                val parsedStartBar = startBar.toIntOrNull() ?: return@LaunchedEffect
-                                val count = bars.toIntOrNull() ?: return@LaunchedEffect
-                                val normalizedChord = chord.trim()
-                                if (normalizedChord.isBlank()) return@LaunchedEffect
-                                if (parsedStartBar != step.startBar || normalizedChord != step.chordName || count != step.barCount) {
-                                    viewModel.updateStep(step.id, parsedStartBar, normalizedChord, count)
-                                }
-                            }
                             Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                                 OutlinedTextField(
                                     value = startBar,
@@ -309,8 +296,17 @@ private fun BarStepList(steps: List<BarChordStep>, viewModel: SongsViewModel) {
                                     modifier = Modifier.weight(1f)
                                 )
                             }
-                            Text("Auto-saves changes")
                             Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                                Button(onClick = {
+                                    val parsedStartBar = startBar.toIntOrNull() ?: return@Button
+                                    val count = bars.toIntOrNull() ?: return@Button
+                                    val normalizedChord = chord.trim()
+                                    if (normalizedChord.isBlank()) return@Button
+                                    viewModel.updateStep(step.id, parsedStartBar, normalizedChord, count)
+                                    isEditing = false
+                                }) {
+                                    Text("Save")
+                                }
                                 Button(onClick = {
                                     startBar = step.startBar.toString()
                                     chord = step.chordName
