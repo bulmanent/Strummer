@@ -200,10 +200,22 @@ class PlaybackService(
     private fun startProgressLoop() {
         progressJob?.cancel()
         progressJob = scope.launch {
-            while (isActive && _isPlaying.value) {
+            while (isActive) {
                 val player = mediaPlayer ?: break
-                _positionMs.value = player.currentPosition.toLong().coerceAtLeast(0L)
-                handleLoopBoundary()
+                val playing = runCatching { player.isPlaying }.getOrDefault(false)
+                val position = runCatching { player.currentPosition.toLong().coerceAtLeast(0L) }
+                    .getOrElse {
+                        Log.w(TAG, "Unable to read playback position", it)
+                        _positionMs.value
+                    }
+                _isPlaying.value = playing
+                _positionMs.value = position
+                if (playing) {
+                    handleLoopBoundary()
+                }
+                if (!playing && position <= 0L) {
+                    break
+                }
                 delay(16L)
             }
         }
