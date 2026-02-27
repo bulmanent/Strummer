@@ -182,7 +182,12 @@ fun SongsScreen(
                         )
                         Button(onClick = {
                             val stepNumber = setStepInput.toIntOrNull()
-                            viewModel.setStepStartToCurrentLoopBar(stepNumber)
+                            val resolvedStepNumber = stepNumber ?: state.currentStepNumber
+                            val didSet = viewModel.setStepStartToCurrentLoopBar(stepNumber)
+                            if (didSet && resolvedStepNumber != null && state.barSteps.isNotEmpty()) {
+                                val nextStepNumber = (resolvedStepNumber % state.barSteps.size) + 1
+                                setStepInput = nextStepNumber.toString()
+                            }
                         }) {
                             Text("Set Step")
                         }

@@ -289,22 +289,22 @@ class SongsViewModel(
         }
     }
 
-    fun setStepStartToCurrentLoopBar(stepNumber: Int?) {
+    fun setStepStartToCurrentLoopBar(stepNumber: Int?): Boolean {
         val state = _uiState.value
-        state.selectedSongId ?: return
+        state.selectedSongId ?: return false
         val steps = state.barSteps.sortedBy { it.displayOrder }
         if (steps.isEmpty()) {
             _uiState.value = state.copy(errorMessage = "No steps available")
-            return
+            return false
         }
         val resolvedStepNumber = stepNumber ?: state.currentStepNumber
         if (resolvedStepNumber == null) {
             _uiState.value = state.copy(errorMessage = "Enter a step number or play within a step first")
-            return
+            return false
         }
         if (resolvedStepNumber !in 1..steps.size) {
             _uiState.value = state.copy(errorMessage = "Step number must be between 1 and ${steps.size}")
-            return
+            return false
         }
 
         val index = resolvedStepNumber - 1
@@ -317,13 +317,13 @@ class SongsViewModel(
                 _uiState.value = state.copy(
                     errorMessage = "Invalid step order. Step $resolvedStepNumber must start at or after bar $minStart."
                 )
-                return
+                return false
             }
         }
 
         if (current.startBar == targetBar) {
             _uiState.value = state.copy(infoMessage = "Step $resolvedStepNumber already starts at bar $targetBar")
-            return
+            return true
         }
 
         val updated = steps.toMutableList()
@@ -350,6 +350,7 @@ class SongsViewModel(
                 _uiState.value = _uiState.value.copy(errorMessage = it.message ?: "Failed to set step location")
             }
         }
+        return true
     }
 
     private fun applyProfile(profile: PracticeProfile) {
