@@ -18,11 +18,13 @@ import androidx.compose.material3.Card
 import androidx.compose.material3.DropdownMenu
 import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.FilterChip
+import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Slider
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.key
 import androidx.compose.runtime.mutableStateOf
@@ -47,6 +49,38 @@ fun SongsScreen(
     var addChordName by remember { mutableStateOf("") }
     var addBarsInput by remember { mutableStateOf("4") }
     var setStepInput by remember { mutableStateOf("1") }
+    var showClearStepsConfirm by remember { mutableStateOf(false) }
+
+    LaunchedEffect(state.selectedSongId, state.barSteps.size) {
+        val parsed = setStepInput.toIntOrNull()
+        setStepInput = when {
+            state.barSteps.isEmpty() -> "1"
+            parsed == null || parsed < 1 -> "1"
+            parsed > state.barSteps.size + 1 -> (state.barSteps.size + 1).toString()
+            else -> setStepInput
+        }
+    }
+
+    if (showClearStepsConfirm) {
+        AlertDialog(
+            onDismissRequest = { showClearStepsConfirm = false },
+            title = { Text("Clear all steps?") },
+            text = { Text("This will remove every step for this song.") },
+            confirmButton = {
+                Button(onClick = {
+                    showClearStepsConfirm = false
+                    viewModel.clearSteps()
+                }) {
+                    Text("Yes")
+                }
+            },
+            dismissButton = {
+                Button(onClick = { showClearStepsConfirm = false }) {
+                    Text("No")
+                }
+            }
+        )
+    }
 
     val picker = rememberLauncherForActivityResult(ActivityResultContracts.OpenDocument()) { uri ->
         pendingAddSongUri = uri
@@ -252,6 +286,12 @@ fun SongsScreen(
                             addChordName = ""
                         }) {
                             Text("Add Step")
+                        }
+                        Button(
+                            onClick = { showClearStepsConfirm = true },
+                            enabled = state.barSteps.isNotEmpty()
+                        ) {
+                            Text("Clear Steps")
                         }
                     }
 

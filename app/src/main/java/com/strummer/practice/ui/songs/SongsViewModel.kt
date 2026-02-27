@@ -288,6 +288,26 @@ class SongsViewModel(
         }
     }
 
+    fun clearSteps() {
+        val stepIds = _uiState.value.barSteps.map { it.id }
+        if (stepIds.isEmpty()) return
+        viewModelScope.launch {
+            runCatching {
+                stepIds.forEach { songRepository.deleteBarStep(it) }
+            }.onSuccess {
+                _uiState.value = _uiState.value.copy(
+                    currentStepNumber = null,
+                    currentChord = "-",
+                    nextChord = "-",
+                    infoMessage = "Cleared all steps",
+                    errorMessage = null
+                )
+            }.onFailure {
+                _uiState.value = _uiState.value.copy(errorMessage = it.message ?: "Failed to clear steps")
+            }
+        }
+    }
+
     fun deleteSelectedSong() {
         val songId = _uiState.value.selectedSongId ?: return
         viewModelScope.launch {
