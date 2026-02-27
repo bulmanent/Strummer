@@ -1,7 +1,7 @@
 <?xml version="1.0" encoding="UTF-8"?>
-<testsuite name="com.strummer.practice.PracticeLibraryStoreTest" tests="1" skipped="0" failures="0" errors="0" timestamp="2026-02-27T10:27:37" hostname="neil-latitude7490" time="0.047">
+<testsuite name="com.strummer.practice.PracticeLibraryStoreTest" tests="1" skipped="0" failures="0" errors="0" timestamp="2026-02-27T11:00:50" hostname="neil-latitude7490" time="0.053">
   <properties/>
-  <testcase name="roundTripsSongsAndChordEvents" classname="com.strummer.practice.PracticeLibraryStoreTest" time="0.047"/>
+  <testcase name="roundTripsSongsAndChordEvents" classname="com.strummer.practice.PracticeLibraryStoreTest" time="0.053"/>
   <system-out><![CDATA[]]></system-out>
   <system-err><![CDATA[]]></system-err>
 </testsuite>

@@ -161,7 +161,7 @@ class PlaybackService(
                 val player = mediaPlayer ?: break
                 _positionMs.value = player.currentPosition.toLong().coerceAtLeast(0L)
                 handleLoopBoundary()
-                delay(100L)
+                delay(33L)
             }
         }
     }

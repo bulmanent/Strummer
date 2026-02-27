@@ -21,6 +21,7 @@ import kotlinx.coroutines.flow.collectLatest
 import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.launch
+import kotlin.math.roundToInt
 
 data class SongsUiState(
     val songs: List<Song> = emptyList(),
@@ -37,9 +38,9 @@ data class SongsUiState(
     val currentStepNumber: Int? = null,
     val currentChord: String = "-",
     val nextChord: String = "-",
-    val absoluteBar: Int = 1,
-    val loopBar: Int = 1,
-    val barsUntilNextChange: Int = 1,
+    val absoluteBar: Double = 1.0,
+    val loopBar: Double = 1.0,
+    val barsUntilNextChange: Double = 1.0,
     val pitchStatus: String = "Pitch correction active",
     val errorMessage: String? = null,
     val infoMessage: String? = null,
@@ -48,8 +49,8 @@ data class SongsUiState(
     val selectedSong: Song?
         get() = songs.firstOrNull { it.id == selectedSongId }
 
-    val totalLoopBars: Int
-        get() = barSteps.maxOfOrNull { it.startBar + it.barCount - 1 } ?: 0
+    val totalLoopBars: Double
+        get() = barSteps.maxOfOrNull { it.startBar + it.barCount - 1.0 } ?: 0.0
 }
 
 class SongsViewModel(
@@ -240,7 +241,7 @@ class SongsViewModel(
         recalculateBarCue(_uiState.value.positionMs)
     }
 
-    fun addStep(chordName: String, barCount: Int) {
+    fun addStep(chordName: String, barCount: Double) {
         val songId = _uiState.value.selectedSongId ?: return
         viewModelScope.launch {
             runCatching {
@@ -251,7 +252,7 @@ class SongsViewModel(
         }
     }
 
-    fun updateStep(stepId: String, startBar: Int, chordName: String, barCount: Int) {
+    fun updateStep(stepId: String, startBar: Double, chordName: String, barCount: Double) {
         val existing = _uiState.value.barSteps.firstOrNull { it.id == stepId } ?: return
         val updated = existing.copy(
             startBar = startBar,
@@ -308,7 +309,7 @@ class SongsViewModel(
 
         val index = resolvedStepNumber - 1
         val current = steps[index]
-        val targetBar = state.loopBar
+        val targetBar = snapToHalfBar(state.loopBar)
 
         if (index > 0) {
             val minStart = steps[index - 1].startBar + steps[index - 1].barCount
@@ -389,9 +390,9 @@ class SongsViewModel(
             _uiState.value = state.copy(
                 currentChord = "-",
                 nextChord = "-",
-                absoluteBar = 1,
-                loopBar = 1,
-                barsUntilNextChange = 1
+                absoluteBar = 1.0,
+                loopBar = 1.0,
+                barsUntilNextChange = 1.0
             )
             return
         }
@@ -408,6 +409,10 @@ class SongsViewModel(
 
     private fun computeBarDurationMs(tempoBpm: Int, timeSignatureTop: Int): Long {
         return (60_000.0 / tempoBpm.toDouble() * timeSignatureTop.toDouble()).toLong().coerceAtLeast(1L)
+    }
+
+    private fun snapToHalfBar(value: Double): Double {
+        return ((value * 2.0).roundToInt() / 2.0).coerceAtLeast(1.0)
     }
 
     override fun onCleared() {

@@ -123,8 +123,8 @@ class SongRepository(private val context: Context) {
         }.onFailure { Log.w(TAG, "Failed to delete audio file for ${song.id}", it) }
     }
 
-    suspend fun addBarStep(songId: String, chordName: String, barCount: Int): BarChordStep {
-        require(barCount > 0) { "Bars must be at least 1" }
+    suspend fun addBarStep(songId: String, chordName: String, barCount: Double): BarChordStep {
+        require(barCount > 0.0) { "Bars must be greater than 0" }
         require(chordName.isNotBlank()) { "Chord is required" }
         ensureSongExists(songId)
         val normalizedChord = normalizeChord(chordName)
@@ -136,7 +136,7 @@ class SongRepository(private val context: Context) {
         )
         val nextOrder = existing.maxOfOrNull { it.displayOrder + 1 }
             ?: 0
-        val nextStart = existing.maxOfOrNull { it.startBar + it.barCount } ?: 1
+        val nextStart = existing.maxOfOrNull { it.startBar + it.barCount } ?: 1.0
 
         val step = BarChordStep(
             id = UUID.randomUUID().toString(),
@@ -152,8 +152,8 @@ class SongRepository(private val context: Context) {
     }
 
     suspend fun updateBarStep(step: BarChordStep): BarChordStep {
-        require(step.startBar >= 1) { "Start bar must be at least 1" }
-        require(step.barCount > 0) { "Bars must be at least 1" }
+        require(step.startBar >= 1.0) { "Start bar must be at least 1" }
+        require(step.barCount > 0.0) { "Bars must be greater than 0" }
         require(step.chordName.isNotBlank()) { "Chord is required" }
         val normalized = step.copy(chordName = normalizeChord(step.chordName))
 
@@ -167,8 +167,8 @@ class SongRepository(private val context: Context) {
         return normalized
     }
 
-    suspend fun updateBarStepStartBar(stepId: String, startBar: Int) {
-        require(startBar >= 1) { "Start bar must be at least 1" }
+    suspend fun updateBarStepStartBar(stepId: String, startBar: Double) {
+        require(startBar >= 1.0) { "Start bar must be at least 1" }
         mutateState { state ->
             if (state.barChordSteps.none { it.id == stepId }) {
                 throw IllegalArgumentException("Step not found")
@@ -278,11 +278,11 @@ class SongRepository(private val context: Context) {
     private fun normalizeStepStarts(steps: List<BarChordStep>): List<BarChordStep> {
         if (steps.isEmpty()) return steps
         val ordered = steps.sortedBy { it.displayOrder }
-        val alreadyValid = ordered.zipWithNext().all { (a, b) -> b.startBar > a.startBar } &&
-            ordered.first().startBar >= 1
+        val alreadyValid = ordered.zipWithNext().all { (a, b) -> b.startBar > a.startBar + EPSILON } &&
+            ordered.first().startBar >= 1.0 - EPSILON
         if (alreadyValid) return ordered
 
-        var start = 1
+        var start = 1.0
         return ordered.map { step ->
             val normalized = step.copy(startBar = start)
             start += step.barCount
@@ -294,9 +294,13 @@ class SongRepository(private val context: Context) {
         val target = allSteps.filter { it.songId == songId }.sortedBy { it.displayOrder }
         if (target.isEmpty()) return allSteps
 
-        var previousEndExclusive = 1
+        var previousEndExclusive = 1.0
         val normalized = target.mapIndexed { index, step ->
-            val safeStart = if (index == 0) step.startBar.coerceAtLeast(1) else step.startBar.coerceAtLeast(previousEndExclusive)
+            val safeStart = if (index == 0) {
+                step.startBar.coerceAtLeast(1.0)
+            } else {
+                step.startBar.coerceAtLeast(previousEndExclusive)
+            }
             val updated = step.copy(startBar = safeStart)
             previousEndExclusive = safeStart + step.barCount
             updated
@@ -307,6 +311,7 @@ class SongRepository(private val context: Context) {
 
     companion object {
         private const val TAG = "SongRepository"
+        private const val EPSILON = 1e-6
         val SUPPORTED_EXTENSIONS = setOf("mp3", "m4a", "aac", "wav", "ogg")
     }
 }

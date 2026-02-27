@@ -141,8 +141,10 @@ fun SongsScreen(
                         fontWeight = FontWeight.Bold
                     )
                     Text("Current Step: ${state.currentStepNumber ?: "-"}")
-                    Text("Next: ${state.nextChord} (${state.barsUntilNextChange} bars)")
-                    Text("Bar ${state.absoluteBar} (Loop ${state.loopBar}/${state.totalLoopBars.coerceAtLeast(1)})")
+                    Text("Next: ${state.nextChord} (${formatBarValue(state.barsUntilNextChange)} bars)")
+                    Text(
+                        "Bar ${formatBarValue(state.absoluteBar)} (Loop ${formatBarValue(state.loopBar)}/${formatBarValue(state.totalLoopBars.coerceAtLeast(1.0))})"
+                    )
 
                     val safeDuration = state.durationMs.coerceAtLeast(1L)
                     Slider(
@@ -227,7 +229,7 @@ fun SongsScreen(
                             modifier = Modifier.weight(1f)
                         )
                         Button(onClick = {
-                            val bars = addBarsInput.toIntOrNull() ?: return@Button
+                            val bars = addBarsInput.toDoubleOrNull() ?: return@Button
                             viewModel.addStep(addChordName, bars)
                             addChordName = ""
                         }) {
@@ -254,19 +256,21 @@ private fun BarStepList(steps: List<BarChordStep>, viewModel: SongsViewModel) {
             key(step.id) {
                 var isEditing by remember(step.id) { mutableStateOf(false) }
                 var chord by remember(step.id, step.chordName) { mutableStateOf(step.chordName) }
-                var bars by remember(step.id, step.barCount) { mutableStateOf(step.barCount.toString()) }
-                var startBar by remember(step.id, step.startBar) { mutableStateOf(step.startBar.toString()) }
+                var bars by remember(step.id, step.barCount) { mutableStateOf(barValueToInput(step.barCount)) }
+                var startBar by remember(step.id, step.startBar) { mutableStateOf(barValueToInput(step.startBar)) }
 
                 Card(modifier = Modifier.fillMaxWidth()) {
                     Column(modifier = Modifier.padding(8.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {
                         Text("Step $stepNumber")
                         if (!isEditing) {
-                            Text("Starts at bar ${step.startBar} • ${step.chordName} for ${step.barCount} bars")
+                            Text(
+                                "Starts at bar ${formatBarValue(step.startBar)} • ${step.chordName} for ${formatBarValue(step.barCount)} bars"
+                            )
                             Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                                 Button(onClick = {
-                                    startBar = step.startBar.toString()
+                                    startBar = barValueToInput(step.startBar)
                                     chord = step.chordName
-                                    bars = step.barCount.toString()
+                                    bars = barValueToInput(step.barCount)
                                     isEditing = true
                                 }) {
                                     Text("Edit")
@@ -298,8 +302,8 @@ private fun BarStepList(steps: List<BarChordStep>, viewModel: SongsViewModel) {
                             }
                             Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                                 Button(onClick = {
-                                    val parsedStartBar = startBar.toIntOrNull() ?: return@Button
-                                    val count = bars.toIntOrNull() ?: return@Button
+                                    val parsedStartBar = startBar.toDoubleOrNull() ?: return@Button
+                                    val count = bars.toDoubleOrNull() ?: return@Button
                                     val normalizedChord = chord.trim()
                                     if (normalizedChord.isBlank()) return@Button
                                     viewModel.updateStep(step.id, parsedStartBar, normalizedChord, count)
@@ -308,9 +312,9 @@ private fun BarStepList(steps: List<BarChordStep>, viewModel: SongsViewModel) {
                                     Text("Save")
                                 }
                                 Button(onClick = {
-                                    startBar = step.startBar.toString()
+                                    startBar = barValueToInput(step.startBar)
                                     chord = step.chordName
-                                    bars = step.barCount.toString()
+                                    bars = barValueToInput(step.barCount)
                                     isEditing = false
                                 }) {
                                     Text("Cancel")
@@ -335,3 +339,12 @@ private fun formatMs(value: Long): String {
     val roundedTenths = (seconds * 10.0).roundToInt() / 10.0
     return "%02d:%04.1f".format(minutes, roundedTenths)
 }
+
+private fun formatBarValue(value: Double): String {
+    if (kotlin.math.abs(value - value.roundToInt().toDouble()) < 1e-6) {
+        return value.roundToInt().toString()
+    }
+    return "%.2f".format(value).trimEnd('0').trimEnd('.')
+}
+
+private fun barValueToInput(value: Double): String = formatBarValue(value)
