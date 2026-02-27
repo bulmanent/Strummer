@@ -50,7 +50,7 @@ data class SongsUiState(
         get() = songs.firstOrNull { it.id == selectedSongId }
 
     val totalLoopBars: Double
-        get() = barSteps.maxOfOrNull { it.startBar + it.barCount - 1.0 } ?: 0.0
+        get() = barSteps.maxOfOrNull { it.startBar } ?: 0.0
 }
 
 class SongsViewModel(

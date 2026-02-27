@@ -20,7 +20,8 @@ class BarLoopTimelineService {
 
         val barMs = (60_000.0 / tempoBpm.toDouble() * timeSignatureTop.toDouble()).coerceAtLeast(1.0)
         val ordered = steps.sortedBy { it.displayOrder }
-        val totalBars = ordered.maxOf { it.startBar + it.barCount - 1.0 }.coerceAtLeast(1.0)
+        // Treat step starts as persistent loop markers; wrap at the last marker position.
+        val totalBars = ordered.maxOf { it.startBar }.coerceAtLeast(1.0)
 
         val elapsedBars = elapsedMs.toDouble() / barMs
         val absoluteBar = elapsedBars + 1.0

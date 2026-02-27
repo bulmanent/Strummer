@@ -20,17 +20,17 @@ class BarLoopTimelineServiceTest {
 
         val atBar1 = service.resolve(0L, 100, 4, steps)
         val atBar5 = service.resolve(barMs * 4, 100, 4, steps)
-        val atBar10 = service.resolve(barMs * 9, 100, 4, steps)
-        val atBar17Loop = service.resolve(barMs * 16, 100, 4, steps)
+        val atBar9 = service.resolve(barMs * 8, 100, 4, steps)
+        val atBar10Loop = service.resolve(barMs * 9, 100, 4, steps)
 
         assertEquals("G", atBar1?.currentChord)
         assertEquals(1, atBar1?.currentStepNumber)
         assertEquals("D", atBar5?.currentChord)
         assertEquals(2, atBar5?.currentStepNumber)
-        assertEquals("Am", atBar10?.currentChord)
-        assertEquals(3, atBar10?.currentStepNumber)
-        assertEquals(1.0, atBar17Loop?.loopBar ?: 0.0, 0.0001)
-        assertEquals("G", atBar17Loop?.currentChord)
+        assertEquals("Am", atBar9?.currentChord)
+        assertEquals(3, atBar9?.currentStepNumber)
+        assertEquals(1.0, atBar10Loop?.loopBar ?: 0.0, 0.0001)
+        assertEquals("G", atBar10Loop?.currentChord)
     }
 
     @Test
