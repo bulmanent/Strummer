@@ -203,7 +203,13 @@ class SongsViewModel(
     }
 
     fun selectSong(songId: String) {
-        _uiState.value = _uiState.value.copy(selectedSongId = songId, infoMessage = null, errorMessage = null)
+        val selected = _uiState.value.songs.firstOrNull { it.id == songId }
+        _uiState.value = _uiState.value.copy(
+            selectedSongId = songId,
+            songTitleInput = selected?.title.orEmpty(),
+            infoMessage = null,
+            errorMessage = null
+        )
         observeSongSpecificFlows(songId)
     }
 
@@ -312,9 +318,10 @@ class SongsViewModel(
         }
 
         val placeholderChord = when {
+            originalSteps.isEmpty() -> "G"
             state.currentChord.isNotBlank() && state.currentChord != "-" -> state.currentChord
             originalSteps.isNotEmpty() -> originalSteps.last().chordName
-            else -> "N.C."
+            else -> "G"
         }
 
         val targetBar = snapToHalfBar(state.absoluteBar)
@@ -332,20 +339,18 @@ class SongsViewModel(
                 }
 
                 val index = resolvedStepNumber - 1
-                val current = steps[index]
+                val updated = steps.toMutableList()
                 if (index > 0) {
-                    val minStart = steps[index - 1].startBar + steps[index - 1].barCount
+                    val previous = updated[index - 1]
+                    val inferredPreviousLength = snapToHalfBarLength(targetBar - previous.startBar)
+                    updated[index - 1] = previous.copy(barCount = inferredPreviousLength)
+                    val minStart = updated[index - 1].startBar + updated[index - 1].barCount
                     if (targetBar < minStart) {
                         throw IllegalArgumentException(
                             "Invalid step order. Step $resolvedStepNumber must start at or after bar $minStart."
                         )
                     }
                 }
-                if (current.startBar == targetBar) {
-                    return@runCatching
-                }
-
-                val updated = steps.toMutableList()
                 updated[index] = updated[index].copy(startBar = targetBar)
                 for (i in (index + 1) until updated.size) {
                     val prev = updated[i - 1]
@@ -355,7 +360,7 @@ class SongsViewModel(
                     }
                 }
                 updated.forEach { step ->
-                    songRepository.updateBarStepStartBar(step.id, step.startBar)
+                    songRepository.updateBarStep(step)
                 }
             }.onSuccess {
                 _uiState.value = _uiState.value.copy(
@@ -367,6 +372,31 @@ class SongsViewModel(
             }
         }
         return true
+    }
+
+    fun endStepsAtCurrentBar() {
+        val state = _uiState.value
+        val steps = state.barSteps.sortedBy { it.displayOrder }
+        val last = steps.lastOrNull()
+        if (last == null) {
+            _uiState.value = state.copy(errorMessage = "No steps available")
+            return
+        }
+
+        val targetBar = snapToHalfBar(state.absoluteBar)
+        val newLength = snapToHalfBarLength(targetBar - last.startBar)
+        viewModelScope.launch {
+            runCatching {
+                songRepository.updateBarStep(last.copy(barCount = newLength))
+            }.onSuccess {
+                _uiState.value = _uiState.value.copy(
+                    infoMessage = "End set at bar ${snapToHalfBar(last.startBar + newLength)}",
+                    errorMessage = null
+                )
+            }.onFailure {
+                _uiState.value = _uiState.value.copy(errorMessage = it.message ?: "Failed to set end of steps")
+            }
+        }
     }
 
     private fun applyProfile(profile: PracticeProfile) {
@@ -430,6 +460,10 @@ class SongsViewModel(
 
     private fun snapToHalfBar(value: Double): Double {
         return ((value * 2.0).roundToInt() / 2.0).coerceAtLeast(1.0)
+    }
+
+    private fun snapToHalfBarLength(value: Double): Double {
+        return ((value * 2.0).roundToInt() / 2.0).coerceAtLeast(0.5)
     }
 
     override fun onCleared() {
