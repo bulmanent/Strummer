@@ -30,6 +30,7 @@ import androidx.compose.runtime.key
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
+import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
@@ -267,7 +268,11 @@ fun SongsScreen(
                         )
                     }
 
-                    Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.spacedBy(8.dp),
+                        verticalAlignment = Alignment.Top
+                    ) {
                         OutlinedTextField(
                             value = addChordName,
                             onValueChange = { addChordName = it },
@@ -280,18 +285,28 @@ fun SongsScreen(
                             label = { Text("Bars") },
                             modifier = Modifier.weight(1f)
                         )
-                        Button(onClick = {
-                            val bars = addBarsInput.toDoubleOrNull() ?: return@Button
-                            viewModel.addStep(addChordName, bars)
-                            addChordName = ""
-                        }) {
-                            Text("Add Step")
-                        }
-                        Button(
-                            onClick = { showClearStepsConfirm = true },
-                            enabled = state.barSteps.isNotEmpty()
+                        Column(
+                            modifier = Modifier.width(120.dp),
+                            verticalArrangement = Arrangement.spacedBy(8.dp),
+                            horizontalAlignment = Alignment.End
                         ) {
-                            Text("Clear Steps")
+                            Button(
+                                modifier = Modifier.fillMaxWidth(),
+                                onClick = {
+                                    val bars = addBarsInput.toDoubleOrNull() ?: return@Button
+                                    viewModel.addStep(addChordName, bars)
+                                    addChordName = ""
+                                }
+                            ) {
+                                Text("Add Step")
+                            }
+                            Button(
+                                modifier = Modifier.fillMaxWidth(),
+                                onClick = { showClearStepsConfirm = true },
+                                enabled = state.barSteps.isNotEmpty()
+                            ) {
+                                Text("Clear Steps")
+                            }
                         }
                     }
 
