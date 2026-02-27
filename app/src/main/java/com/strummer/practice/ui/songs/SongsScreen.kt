@@ -169,7 +169,7 @@ fun SongsScreen(
                     Slider(
                         value = state.speed,
                         onValueChange = viewModel::setSpeed,
-                        valueRange = 0.5f..1.25f
+                        valueRange = 0.5f..1.0f
                     )
                     Column(verticalArrangement = Arrangement.spacedBy(2.dp)) {
                     Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {

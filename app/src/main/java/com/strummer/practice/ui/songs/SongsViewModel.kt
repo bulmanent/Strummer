@@ -50,7 +50,10 @@ data class SongsUiState(
         get() = songs.firstOrNull { it.id == selectedSongId }
 
     val totalLoopBars: Double
-        get() = barSteps.maxOfOrNull { it.startBar } ?: 0.0
+        get() {
+            if (barSteps.isEmpty()) return 0.0
+            return barSteps.sumOf { it.barCount }.coerceAtLeast(1.0)
+        }
 }
 
 class SongsViewModel(
@@ -314,7 +317,7 @@ class SongsViewModel(
             else -> "N.C."
         }
 
-        val targetBar = snapToHalfBar(state.loopBar)
+        val targetBar = snapToHalfBar(state.absoluteBar)
 
         viewModelScope.launch {
             runCatching {

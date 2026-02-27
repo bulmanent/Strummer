@@ -21,7 +21,8 @@ class BarLoopTimelineServiceTest {
         val atBar1 = service.resolve(0L, 100, 4, steps)
         val atBar5 = service.resolve(barMs * 4, 100, 4, steps)
         val atBar9 = service.resolve(barMs * 8, 100, 4, steps)
-        val atBar10Loop = service.resolve(barMs * 9, 100, 4, steps)
+        val atBar10 = service.resolve(barMs * 9, 100, 4, steps)
+        val atBar17Loop = service.resolve(barMs * 16, 100, 4, steps)
 
         assertEquals("G", atBar1?.currentChord)
         assertEquals(1, atBar1?.currentStepNumber)
@@ -29,8 +30,9 @@ class BarLoopTimelineServiceTest {
         assertEquals(2, atBar5?.currentStepNumber)
         assertEquals("Am", atBar9?.currentChord)
         assertEquals(3, atBar9?.currentStepNumber)
-        assertEquals(1.0, atBar10Loop?.loopBar ?: 0.0, 0.0001)
-        assertEquals("G", atBar10Loop?.currentChord)
+        assertEquals("Am", atBar10?.currentChord)
+        assertEquals(1.0, atBar17Loop?.loopBar ?: 0.0, 0.0001)
+        assertEquals("G", atBar17Loop?.currentChord)
     }
 
     @Test
@@ -48,5 +50,27 @@ class BarLoopTimelineServiceTest {
         assertEquals("G", atStart?.currentChord)
         assertEquals("D", atHalfBar?.currentChord)
         assertEquals(1.5, atHalfBar?.loopBar ?: 0.0, 0.01)
+    }
+
+    @Test
+    fun repeatsByChordLengthAfterFirstLoop() {
+        val steps = listOf(
+            BarChordStep("1", "song", 0, 4.0, 0.7, "G"),
+            BarChordStep("2", "song", 1, 4.7, 0.7, "D"),
+            BarChordStep("3", "song", 2, 5.4, 1.5, "Em"),
+            BarChordStep("4", "song", 3, 7.0, 0.7, "C"),
+            BarChordStep("5", "song", 4, 7.7, 0.7, "D"),
+            BarChordStep("6", "song", 5, 8.4, 1.5, "G")
+        )
+
+        val barMs = 2_400.0 // 4/4 at 100 bpm
+        val atFirstRepeatStart = service.resolve((barMs * 8.9).toLong(), 100, 4, steps)
+        val intoSecondStepOnRepeat = service.resolve((barMs * 9.7).toLong(), 100, 4, steps)
+
+        assertEquals("G", atFirstRepeatStart?.currentChord)
+        assertEquals(1, atFirstRepeatStart?.currentStepNumber)
+        assertEquals(1.0, atFirstRepeatStart?.loopBar ?: 0.0, 0.01)
+        assertEquals("D", intoSecondStepOnRepeat?.currentChord)
+        assertEquals(2, intoSecondStepOnRepeat?.currentStepNumber)
     }
 }
